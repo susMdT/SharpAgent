@@ -10,7 +10,7 @@ namespace HavocImplant
     {
         static public string url = "http://192.168.1.106:80/balls";
         static public int sleepTime = 10000;
-        static public int timeout = 5000;
-        static public int maxTries = 5;
+        static public int timeout = 30000;
+        static public int maxTries = 10;
     }
 }

