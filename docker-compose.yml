@@ -1,0 +1,10 @@
+version: '3'
+services:
+  compiler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./AgentCode/:/opt/AgentCode/
+    command: "msbuild Compile.proj"
+                

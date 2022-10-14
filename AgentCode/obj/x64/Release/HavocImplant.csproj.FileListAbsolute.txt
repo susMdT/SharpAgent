@@ -1,0 +1,5 @@
+/opt/AgentCode/bin/x64/Release/HavocImplant.exe.config
+/opt/AgentCode/bin/x64/Release/HavocImplant.exe
+/opt/AgentCode/obj/x64/Release/HavocImplant.csproj.AssemblyReference.cache
+/opt/AgentCode/obj/x64/Release/HavocImplant.csproj.CoreCompileInputs.cache
+/opt/AgentCode/obj/x64/Release/HavocImplant.exe

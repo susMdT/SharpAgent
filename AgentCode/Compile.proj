@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<Project name="system" default="build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <Target Name="build">
+        <MSBuild Projects="HavocImplant.csproj" Targets="Build" Properties="Configuration=Release;Platform=x64"/>
+    </Target>
+</Project>
