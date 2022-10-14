@@ -6,8 +6,8 @@ import os, re
 class CommandShell(Command):
     #CommandId = 18
     Name = "shell"
-    Description = "executes commands using cmd.exe"
-    Help = ""
+    Description = "Executes commands using cmd.exe"
+    Help = "Example: shell whoami /all"
     NeedAdmin = False
     Params = [
         CommandParam(
@@ -25,8 +25,6 @@ class CommandShell(Command):
         #AesKey = base64.b64decode(arguments["__meta_AesKey"])
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
 
-        #commands = "/C " + arguments["commands"]
-        #packer.add_data(commands)
         packer.add_data("shell "+arguments["commands"])
         return packer.buffer
         '''
@@ -45,8 +43,8 @@ class CommandShell(Command):
 class CommandExit(Command):
     #CommandId   = COMMAND_EXIT
     Name        = "exit"
-    Description = "tells the agent to exit"
-    Help        = ""
+    Description = "Tells the agent to exit"
+    Help        = "Just exit lmao"
     NeedAdmin   = False
     Mitr        = []
     Params      = []
@@ -56,6 +54,32 @@ class CommandExit(Command):
         Task = Packer()
         Task.add_data("goodbye")
         return Task.buffer #Queue "goodbye" as a tasking. Easy!
+
+class CommandSleep(Command):
+    Name        = "sleep"
+    Description = "Change the agent sleep time"
+    Help = "Example: sleep 3"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="sleeptime",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+
+        #commands = "/C " + arguments["commands"]
+        #packer.add_data(commands)
+        packer.add_data("sleep "+arguments["sleeptime"])
+        return packer.buffer
 
 class Sharp(AgentType):
     Name = "Sharp"
@@ -78,7 +102,8 @@ class Sharp(AgentType):
     BuildingConfig = {
 
         "Sleep": "10",
-
+        "Check-in timeout time": "30",
+        "Maximum Timeouts": "10",
 #        "TestList": [
 #            "list 1",
 #            "list 2",
@@ -106,6 +131,7 @@ class Sharp(AgentType):
     Commands = [
         CommandShell(),
         CommandExit(),
+        CommandSleep(),
     ]
 
     def generate( self, config: dict ) -> None:
@@ -127,8 +153,20 @@ class Sharp(AgentType):
         sleep = int(config['Config'].get('Sleep')) * 1000
         self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Sleep: {sleep}" )
 
-        old_strings = ['url', 'sleepTime']
-        new_strings = ["url = \"{}\";".format(url), "sleepTime = {};".format(sleep)]
+        # Get checkin timeout time for agent
+        timeout = int(config['Config'].get('Check-in timeout time')) * 1000
+        self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Check-in Timeout: {timeout}" )
+
+        #Get checkin max failed attempts
+        maxTries = int(config['Config'].get('Maximum Timeouts'))
+        self.builder_send_message( config[ 'ClientID' ], "Info", f"Agent Max Timeouts: {maxTries}" )
+        old_strings = ['url', 'sleepTime', 'timeout', 'maxTries']
+        new_strings = [
+            "url = \"{}\";".format(url), 
+            "sleepTime = {};".format(sleep),
+            "timeout = {};".format(timeout),
+            "maxTries = {};".format(maxTries),
+            ]
         # Read Config.cs
         with open("AgentCode/Config.cs") as f:
             s = f.read()
@@ -144,6 +182,7 @@ class Sharp(AgentType):
         in_file = open("AgentCode/bin/x64/Release/HavocImplant.exe", "rb") # opening for [r]eading as [b]inary
         data = in_file.read() # if you only wanted to read 512 bytes, do .read(512)
         in_file.close()
+        os.system("rm AgentCode/bin/x64/Release/HavocImplant.exe")
         self.builder_send_payload( config[ 'ClientID' ], self.Name + ".exe", data )
     
     def command_not_found(self, response: dict) -> dict:
