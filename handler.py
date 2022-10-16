@@ -101,9 +101,9 @@ class Sharp(AgentType):
 
     BuildingConfig = {
 
-        "Sleep": "10",
-        "Check-in timeout time": "30",
-        "Maximum Timeouts": "10",
+        "Sleep": "5",
+        "Check-in timeout time": "15",
+        "Maximum Timeouts": "5",
 #        "TestList": [
 #            "list 1",
 #            "list 2",
@@ -235,13 +235,13 @@ class Sharp(AgentType):
             AgentID = response[ "Agent" ][ "NameID" ]
             #self.console_message( AgentID, "Good", "Host checkin", "" )
 
-            print("[*] Agent requested taskings")
+            #print("[*] Agent requested taskings")
             Tasks = self.get_task_queue( response[ "Agent" ] )
-            print("Tasks retrieved")
+            #print("Tasks retrieved")
             if len(agentjson["data"]) > 0:
                 print("Output: " + agentjson["data"])
                 self.console_message( AgentID, "Good", "Received Output:", agentjson["data"] )
-            print(Tasks)
+            #print(Tasks)
         return Tasks
 
 
