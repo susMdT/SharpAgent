@@ -51,6 +51,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AgentFunctions\Download.cs" />
+    <Compile Include="AgentFunctions\Upload.cs" />
     <Compile Include="AgentFunctions\Ls.cs" />
     <Compile Include="AgentFunctions\Shell.cs" />
     <Compile Include="AgentFunctions\Sleep.cs" />
