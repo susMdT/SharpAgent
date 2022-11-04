@@ -13,3 +13,5 @@ Supports http/s, but can only call back to one host address
 | ls   | List directories| ls \program files  |
 | shell      | Run a command via cmd.exe /c| shell net localgroup "Printer Operators"|
 | sleep   | Change the sleep time        |  sleep 5|
+|pwd | Get Current Directory | pwd|
+|upload | upload a file to remote host | upload /home/test.txt test.txt|
