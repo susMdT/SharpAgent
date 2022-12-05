@@ -1,3 +1,5 @@
 # ignore my binaries and some random shit
 AgentCode/bin/**
 AgentCode/obj/**
+__pycache__/**
+Bofs/**
