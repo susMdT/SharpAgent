@@ -77,7 +77,6 @@ namespace HavocImplant.NativeUtils
             Structs.UNICODE_STRING dllName = new Structs.UNICODE_STRING();
             void RtlInitUnicodeString( ref Structs.UNICODE_STRING destinationString, [MarshalAs(UnmanagedType.LPWStr)] string SourceString)
             {
-                //Rewritten RtlInitUnicodeString because I do not want to chance hooks.
                 destinationString.Length = (ushort)size;
                 destinationString.MaximumLength = (ushort)(size + 2);
                 destinationString.Buffer = Marshal.StringToHGlobalUni(SourceString); //write the string into memory

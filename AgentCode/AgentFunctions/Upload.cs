@@ -38,9 +38,9 @@ namespace HavocImplant.AgentFunctions
             {
                 if (checkWriteAccess(dir)) //success
                 {
-                    //File.WriteAllBytes(outputLocation, fileBytes);
-                    //if (!File.Exists(outputLocation)) agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nSomething went wrong when uploading to {outputLocation}").Replace("\\", "\\\\"));
-                    //else agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nUploaded to {outputLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
+                    File.WriteAllBytes(outputLocation, fileBytes);
+                    if (!File.Exists(outputLocation)) agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nSomething went wrong when uploading to {outputLocation}").Replace("\\", "\\\\"));
+                    else agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nUploaded to {outputLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
                     agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nUploaded to {outputLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
                     return;
                 }

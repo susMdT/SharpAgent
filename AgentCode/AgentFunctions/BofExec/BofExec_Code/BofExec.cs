@@ -74,13 +74,13 @@ namespace HavocImplant.AgentFunctions.BofExec
 
                 List<byte> filtering = Encoding.UTF8.GetBytes(output).ToList<byte>();
                 int index = filtering.IndexOf(0x09);
-                Console.WriteLine($"Found tab at {index}");
+                //Console.WriteLine($"Found tab at {index}");
                 while (index >= 0)
                 {
                     filtering[index] = 0x20;
                     filtering.InsertRange(index, new byte[] { 0x20, 0x20, 0x20 });
                     index = filtering.IndexOf(0x09);
-                    Console.WriteLine($"Found tab at {index}");
+                    //onsole.WriteLine($"Found tab at {index}");
                 }
                 output = Encoding.UTF8.GetString(filtering.ToArray());
 

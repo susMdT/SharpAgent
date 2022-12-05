@@ -96,11 +96,6 @@ class CommandLs(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-
-        #commands = "/C " + arguments["commands"]
-        #packer.add_data(commands)
         packer.add_data("ls "+arguments["path"])
         return packer.buffer
 class CommandUpload(Command):
@@ -125,8 +120,6 @@ class CommandUpload(Command):
     def job_generate(self, arguments: dict) -> bytes:
         print("[*] job generate")
         packer = Packer()
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
         packer.add_data("upload remote_dest="+arguments["remote_path"]+";"+arguments["local_file"])
         return packer.buffer
 class CommandDownload(Command):
@@ -170,7 +163,61 @@ class CommandBofExec(Command):
 
         #AesKey = base64.b64decode(arguments["__meta_AesKey"])
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("bofexec "+arguments["local_bof"])
+        packer.add_data("bofexec "+ arguments["local_bof"])
+        return packer.buffer
+class CommandInlineAssembly(Command):
+    Name        = "inline_assembly"
+    Description = "Run a .NET assembly in process. Need to specify full path to destination. No command line arg support for now."
+    Help = "Example: inline_assembly Assemblies/seatbelt.exe"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_assembly",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="args",
+            is_file_path=False,
+            is_optional=True
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("inline_assembly file="+ arguments["local_assembly"]+";"+arguments["args"])
+        return packer.buffer
+class CommandInlinePE(Command):
+    Name        = "inline_pe"
+    Description = "Run a x64 PE in memory. Need to specify full path to destination."
+    Help = "Example: inline_pe PEs/mimikatz.exe"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_exe",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="args",
+            is_file_path=False,
+            is_optional=True
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
+        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        packer.add_data("inline_pe file="+ arguments["local_exe"]+";"+arguments["args"])
         return packer.buffer
 class Sharp(AgentType):
     Name = "Sharp"
@@ -227,6 +274,8 @@ class Sharp(AgentType):
         CommandUpload(),
         CommandDownload(),
         CommandBofExec(),
+        CommandInlineAssembly(),
+        CommandInlinePE(),
     ]
 
     def generate( self, config: dict ) -> None:
@@ -315,7 +364,7 @@ class Sharp(AgentType):
         agent_header    = response[ "AgentHeader" ]
         agent_response  = base64.b64decode( response[ "Response" ] ) # the teamserver base64 encodes the request.
 
-        agentjson = json.loads(agent_response)
+        agentjson = json.loads(agent_response, strict=False)
         if agentjson["task"] == "register":
             print("[*] Registered agent")
             self.register( agent_header, json.loads(agentjson["data"]) )

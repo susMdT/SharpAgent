@@ -108,7 +108,7 @@ namespace HavocImplant.NativeUtils
         public delegate uint NtWaitForSingleObject(
             IntPtr Handle,
             bool Alertable,
-            Structs.LARGE_INTEGER Timeout);
+            IntPtr Timeout);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate uint WaitForSingleObject(
             IntPtr hThread,
@@ -140,6 +140,28 @@ namespace HavocImplant.NativeUtils
         public delegate bool GetExitCodeThread(IntPtr hThread, out int lpExitcode);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate void ZeroMemory(IntPtr dest, int size);
+                [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate IntPtr GetCommandLineA();
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool CreatePipe(
+            out IntPtr hReadPipe, 
+            out IntPtr hWritePipe, 
+            ref Structs.Win32.SECURITY_ATTRIBUTES lpPipeAttributes, 
+            uint nSize
+            );
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool SetStdHandle(
+            int nStdHandle, 
+            IntPtr hHandle);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool ReadFile(
+            IntPtr hFile,
+            [Out] byte[] lpBuffer,
+            uint nNumberOfBytesToRead,
+            out uint lpNumberOfBytesRead,
+            IntPtr lpOverlapped);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool CloseHandle(IntPtr hObject);
 
 
     }

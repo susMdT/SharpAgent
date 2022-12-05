@@ -11,6 +11,13 @@ namespace HavocImplant.NativeUtils
     {
         public class Win32
         {
+            [StructLayout(LayoutKind.Sequential)]
+            public struct SECURITY_ATTRIBUTES
+            {
+                internal int nLength;
+                internal IntPtr lpSecurityDescriptor;
+                internal int bInheritHandle;
+            }
             public class Enums
             {
                 [Flags]
@@ -52,6 +59,14 @@ namespace HavocImplant.NativeUtils
                     WINSTA_ENUMERATE = 0x00000100,
                     WINSTA_READSCREEN = 0x00000200,
                     WINSTA_ALL_ACCESS = 0x0000037F
+                }
+                [Flags]
+                public enum IMAGE_SECTION_HEADER_CHARACTERISTICS: UInt32
+                {
+                    IMAGE_SCN_MEM_EXECUTE = 0x20000000,
+                    IMAGE_SCN_MEM_READ = 0x40000000,
+                    IMAGE_SCN_MEM_WRITE = 0x80000000,
+
                 }
                 [Flags]
                 public enum FileShareFlags : UInt32
@@ -441,6 +456,16 @@ namespace HavocImplant.NativeUtils
         {
             public IntPtr Status;
             public IntPtr Information;
+        }
+        [StructLayout(LayoutKind.Explicit)]
+        public struct LargeInteger
+        {
+            [FieldOffset(0)]
+            public int Low;
+            [FieldOffset(4)]
+            public int High;
+            [FieldOffset(0)]
+            public long QuadPart;
         }
     }
 }
