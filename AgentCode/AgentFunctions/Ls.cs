@@ -50,8 +50,8 @@ namespace HavocImplant.AgentFunctions
                     retVal = String.Format("{0} does not exist", dir);
                 }
             }
-            Console.WriteLine("I have ls'd");
-            Console.WriteLine(retVal);
+            //Console.WriteLine("I have ls'd");
+            //Console.WriteLine(retVal);
             agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand}]\n" + retVal).Replace("\\", "\\\\").Replace("\"", "\\\""));
         }
         public static string parseFileSystemEntry(string entry)

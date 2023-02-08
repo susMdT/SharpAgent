@@ -162,7 +162,14 @@ namespace HavocImplant.NativeUtils
             IntPtr lpOverlapped);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate bool CloseHandle(IntPtr hObject);
-
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool AllocConsole();
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate IntPtr GetConsoleWindow();
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool DestroyWindow(IntPtr hWnd);
 
     }
 }

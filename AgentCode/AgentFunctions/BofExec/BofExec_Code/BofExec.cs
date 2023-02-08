@@ -111,7 +111,7 @@ namespace HavocImplant.AgentFunctions.BofExec
 
        
     }
-    //uncomment the console.writeline for debug
+    //uncomment the Console.WriteLine for debug
     public static class Logger
     {
         public enum LogLevels
@@ -133,17 +133,20 @@ namespace HavocImplant.AgentFunctions.BofExec
         {
             var methodInfo = new StackTrace().GetFrame(1).GetMethod();
             var className = methodInfo.ReflectedType.Name;
-            if (Level >= LogLevels.DEBUG) Console.WriteLine($"[=] [{className}:{methodInfo}] {Message}");
+            //if (Level >= LogLevels.DEBUG) 
+                Console.WriteLine($"[=] [{className}:{methodInfo}] {Message}");
         }
 
         public static void Info(string Message)
         {
-            if (Level >= LogLevels.INFO) Console.WriteLine($"[*] {Message}");
+            //if (Level >= LogLevels.INFO) 
+                Console.WriteLine($"[*] {Message}");
         }
 
         public static void Error(string Message)
         {
-            if (Level >= LogLevels.ERROR) Console.WriteLine($"[!!] {Message}");
+            //if (Level >= LogLevels.ERROR) 
+                Console.WriteLine($"[!!] {Message}");
         }
     }
 }

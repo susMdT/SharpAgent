@@ -12,7 +12,7 @@ namespace HavocImplant.AgentFunctions
     {
         public static void Run(Implant agent, string time, int taskId)
         {
-            Console.WriteLine($"Received sleep request of {time}");
+            //Console.WriteLine($"Received sleep request of {time}");
             if (Int32.TryParse(time, out int timeInt))
             {
                 agent.sleepTime = timeInt * 1000;

