@@ -53,6 +53,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Communications\Comms.cs" />
+    <Compile Include="Communications\Utils.cs" />
     <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\BofRunner.cs" />
     <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\Coff.cs" />
     <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\IAT.cs" />

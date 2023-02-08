@@ -2,4 +2,4 @@
 AgentCode/bin/**
 AgentCode/obj/**
 __pycache__/**
-Bofs/**
+.vs/**

