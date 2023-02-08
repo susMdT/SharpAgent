@@ -3,3 +3,5 @@ AgentCode/bin/**
 AgentCode/obj/**
 __pycache__/**
 .vs/**
+AgentCode/.vs/**
+SharpAgent.exe
