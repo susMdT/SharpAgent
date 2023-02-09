@@ -26,7 +26,7 @@ namespace HavocImplant.NativeUtils
             ref uint oldProtect);
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate void NtCreateThreadEx(
+        public delegate uint NtCreateThreadEx(
             ref IntPtr threadHandle,
             uint desiredAccess,
             IntPtr objectAttributes,
@@ -169,7 +169,9 @@ namespace HavocImplant.NativeUtils
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         public delegate bool ShowWindow(IntPtr hWnd, int nCmdShow);
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        public delegate bool DestroyWindow(IntPtr hWnd);
+        public delegate bool FreeConsole();
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        public delegate bool AttachConsole(int pid);
 
     }
 }

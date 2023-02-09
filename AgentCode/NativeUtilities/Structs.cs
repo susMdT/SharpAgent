@@ -20,6 +20,8 @@ namespace HavocImplant.NativeUtils
             }
             public class Enums
             {
+                public const int STD_OUTPUT_HANDLE = -11;
+                public const int STD_ERROR_HANDLE = -12;
                 [Flags]
                 public enum ACCESS_MASK : uint 
                 {

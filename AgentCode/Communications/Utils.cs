@@ -4,8 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading.Tasks;
-
+using System.Web.Script.Serialization;
 namespace HavocImplant.Communications
 {
     internal class Utils
@@ -66,8 +65,17 @@ namespace HavocImplant.Communications
             var entries = dict.Select(d => string.Format("\\\"{0}\\\": \\\"{1}\\\"", d.Key, string.Join(",", d.Value)));
             return "{" + string.Join(",", entries) + "}";
         }
+
+        // Parse the task list and extract the task at the offset.
+        public static Implant.task ParseTask(byte[] Tasks, int size, int offset) 
+        {
+            string strTask = Encoding.UTF8.GetString(Tasks, offset + 4, size);
+            Console.WriteLine($"Parsed json is: {strTask}");
+            return new JavaScriptSerializer().Deserialize<Implant.task>(strTask);
+        }
+
         /*
-         * Intended to clean up strings returned from output that mahy look like:
+         * Intended to clean up strings returned from output that may look like:
          * {
          *      "commandoutput":"bruh\n "what""
          * }

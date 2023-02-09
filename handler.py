@@ -24,20 +24,11 @@ class CommandShell(Command):
         #AesKey = base64.b64decode(arguments["__meta_AesKey"])
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
 
-        packer.add_data("shell "+arguments["commands"])
-        return packer.buffer
-        '''
-        task_id = int(arguments["TaskID"], 16)
-        job = TaskJob(
-            command=self.CommandId,
-            task_id=task_id,
-            data=packer.buffer.decode('utf-8'),
-            aes_key=AesKey,
-            aes_iv=AesIV
-        )
+        data = {"TaskCommand":"shell", "TaskFile":"", "TaskArguments":arguments["commands"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 
-        return job.generate()[4:]
-        '''
 
 class CommandExit(Command):
     Name        = "exit"
@@ -215,10 +206,12 @@ class CommandInlinePE(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("inline_pe file="+ arguments["local_exe"]+";"+arguments["args"])
-        return packer.buffer
+        data = {"TaskCommand":"inline_pe", "TaskFile":arguments["local_exe"], "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+        #packer.add_data("inline_pe file="+ arguments["local_exe"]+";"+arguments["args"])
+        #return packer.buffer
 class Sharp(AgentType):
     Name = "Sharp"
     Author = "@smallbraintranman"

