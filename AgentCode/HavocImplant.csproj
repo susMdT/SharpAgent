@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{6FBB807F-74DB-4F6E-B848-0F926EBC7E33}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <RootNamespace>HavocImplant</RootNamespace>
     <AssemblyName>HavocImplant</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
@@ -36,6 +36,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <OutputPath>bin\x64\Debug\</OutputPath>
     <LangVersion>9.0</LangVersion>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <PlatformTarget>x64</PlatformTarget>
@@ -67,11 +68,11 @@
     <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\NativeDeclarations.cs" />
     <Compile Include="AgentFunctions\BofExec\BofExec_Code\Internals\ParsedArgs.cs" />
     <Compile Include="AgentFunctions\BofExec\BofExec_Code\BofExec.cs" />
+    <Compile Include="NativeUtilities\Wrappers.cs" />
     <Compile Include="NativeUtilities\Delegates.cs" />
     <Compile Include="NativeUtilities\ntdll.cs" />
     <Compile Include="NativeUtilities\Structs.cs" />
     <Compile Include="NativeUtilities\Utils.cs" />
-    <Compile Include="NativeUtilities\Wrappers.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="AgentFunctions\CommandInterface.cs" />
     <Compile Include="AgentFunctions\InlinePE.cs" />
@@ -85,10 +86,10 @@
     <Compile Include="Implant.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Web.Extensions" />
-  </ItemGroup>
+<ItemGroup>
+  <Reference Include="System.Windows.Forms" />
+  <Reference Include="System.Web.Extensions" />
+</ItemGroup>
   <Choose>
     <When Condition="'$(Platform)'=='x64'">
       <ItemGroup>

