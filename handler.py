@@ -159,10 +159,11 @@ class CommandBofExec(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("bofexec "+ arguments["local_bof"])
-        return packer.buffer
+        data = {"TaskCommand":"bofexec", "TaskFile":arguments["local_bof"], "TaskArguments":""} #, "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+        
 class CommandInlineAssembly(Command):
     Name        = "inline_assembly"
     Description = "Run a .NET assembly in process. Need to specify full path to destination. No command line arg support for now."

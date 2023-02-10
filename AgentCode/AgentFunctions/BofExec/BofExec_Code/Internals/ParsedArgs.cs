@@ -17,6 +17,8 @@ namespace HavocImplant.AgentFunctions.BofExec.Internals
         internal List<OfArg> of_args; //object file args
         public bool debug = false;
         internal Dictionary<string, string> commandLineArgs = new Dictionary<string, string>();
+
+        public ParsedArgs() { } //temporary until we can get args to work
         public ParsedArgs(string[] args)
         {
             // Set our log level
