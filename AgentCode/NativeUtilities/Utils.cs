@@ -8,9 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
-using static HavocImplant.NativeUtils.Structs.Win32;
 using static HavocImplant.NativeUtils.Structs.Win32.Enums;
-using static System.Collections.Specialized.BitVector32;
 using System.Runtime.CompilerServices;
 
 namespace HavocImplant.NativeUtils

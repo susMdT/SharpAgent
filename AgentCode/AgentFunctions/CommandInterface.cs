@@ -1,4 +1,5 @@
 ﻿using HavocImplant.Communications;
+using System.Threading.Tasks;
 using System;
 
 namespace HavocImplant.AgentFunctions
@@ -16,7 +17,7 @@ namespace HavocImplant.AgentFunctions
             Agent = agent;
         }
 
-        public abstract void Run(int taskId);
+        public abstract Task Run(int taskId);
         public void ReturnOutput(int taskId)
         {
             // We cannot modify an index cause its no variable, so we must make new item
