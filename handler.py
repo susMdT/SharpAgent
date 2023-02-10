@@ -115,8 +115,11 @@ class CommandUpload(Command):
         print("[*] job generate")
         packer = Packer()
         
-        packer.add_data("upload remote_dest="+arguments["remote_path"]+";"+arguments["local_file"])
-        return packer.buffer
+        data = {"TaskCommand":"upload", "TaskFile":arguments["local_file"], "TaskArguments":arguments["remote_path"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+
 class CommandDownload(Command):
     Name        = "download"
     Description = "Download a file. Need to specify full path to destination."
