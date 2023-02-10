@@ -31,10 +31,10 @@ idk shit so this is my guess of the situation based on my code
 * shell spawns cmd
 
 ## Credits
-RastaMouse - SharpC2 Drone command interface/handling, filesystem listing
-codex_tf2 - PyHmmm + documentation on comm structure
-thiagomayllart - DarkMelkor for inline assembly
-Nettitude - Bofexec and Inline PE base
-Octoberfest7 - Capturing Inline PE output with Windows Application
-ChatGPT - String formatting, manual deserialization, json stuff
+RastaMouse - SharpC2 Drone command interface/handling, filesystem listing  
+codex_tf2 - PyHmmm + documentation on comm structure  
+thiagomayllart - DarkMelkor for inline assembly  
+Nettitude - Bofexec and Inline PE base  
+Octoberfest7 - Capturing Inline PE output with Windows Application  
+ChatGPT - String formatting, manual deserialization, json stuff  
 
