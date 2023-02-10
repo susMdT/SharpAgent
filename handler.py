@@ -137,10 +137,10 @@ class CommandDownload(Command):
     def job_generate(self, arguments: dict) -> bytes:
         print("[*] job generate")
         packer = Packer()
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("download remote_dest="+arguments["remote_path"])
-        return packer.buffer
+        data = {"TaskCommand":"download", "TaskFile":"", "TaskArguments":arguments["remote_path"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 class CommandBofExec(Command):
     Name        = "bofexec"
     Description = "Run a bof. Need to specify full path to destination. No command line arg support for now."
