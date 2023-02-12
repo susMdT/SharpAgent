@@ -163,7 +163,7 @@ class CommandBofExec(Command):
         json_string = json.dumps(data, indent=4)
         packer.add_data(json_string)
         return packer.buffer[:-1]
-        
+
 class CommandInlineAssembly(Command):
     Name        = "inline_assembly"
     Description = "Run a .NET assembly in process. Need to specify full path to destination. No command line arg support for now."
@@ -215,6 +215,94 @@ class CommandInlinePE(Command):
         packer = Packer()
 
         data = {"TaskCommand":"inline_pe", "TaskFile":arguments["local_exe"], "TaskArguments":arguments["args"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+class CommandPowershellImport(Command):
+    Name        = "powershell_import"
+    Description = "Import a powershell script into Agent memory"
+    Help = "Example: powershell_import /tmp/PowerView.ps1 powerview"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="local_script",
+            is_file_path=True,
+            is_optional=False
+        ),
+        CommandParam(
+            name="name",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        data = {"TaskCommand":"powershell_import", "TaskFile":arguments["local_script"], "TaskArguments":arguments["name"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+class CommandPowershellFree(Command):
+    Name        = "powershell_free"
+    Description = "Free a powershell script from Agent memory"
+    Help = "Example: powershell_import /tmp/PowerView.ps1"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="name",
+            is_file_path=False,
+            is_optional=False
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        data = {"TaskCommand":"powershell_free", "TaskFile":"", "TaskArguments":arguments["name"].rstrip()}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+class CommandPowershellList(Command):
+    Name        = "powershell_list"
+    Description = "List powershell scripts in Agent memory"
+    Help = "Example: powershell_list"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        data = {"TaskCommand":"powershell_list", "TaskFile":"", "TaskArguments":""}
+        json_string = json.dumps(data, indent=4)
+        packer.add_data(json_string)
+        return packer.buffer[:-1]
+class CommandPowershell(Command):
+    Name        = "powershell"
+    Description = "Run a powershell command. Will utilize scripts in Agent memory."
+    Help = "Example: powershell get-domaincomputer"
+    NeedAdmin = False
+    Mitr = []
+    Params = [
+        CommandParam(
+            name="command",
+            is_file_path=False,
+            is_optional=True
+        )
+    ]
+
+    def job_generate(self, arguments: dict) -> bytes:
+        print("[*] job generate")
+        packer = Packer()
+
+        data = {"TaskCommand":"powershell", "TaskFile":"", "TaskArguments":arguments['command'].rstrip()}
         json_string = json.dumps(data, indent=4)
         packer.add_data(json_string)
         return packer.buffer[:-1]
@@ -276,6 +364,10 @@ class Sharp(AgentType):
         CommandBofExec(),
         CommandInlineAssembly(),
         CommandInlinePE(),
+        CommandPowershellImport(),
+        CommandPowershellFree(),
+        CommandPowershellList(),
+        CommandPowershell()
     ]
 
     def generate( self, config: dict ) -> None:
