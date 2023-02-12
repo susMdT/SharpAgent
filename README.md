@@ -22,6 +22,7 @@ Arguments with multiple spaces are buggy right now
 | powershell_list | List powershell scripts accessible to agent | powershell_list |
 | powershell | Run some powershell (doesn't spawn powershell.exe) | powershell Invoke-Mimikatz -Command "coffee exit" |
 | powershell_free | Remove powershell script | powershell_free mmk |
+
 bofexec is incredbibly funky right now and baically experiemental. When client can take multiple args (unless its a skill issue from me) then arg support will be resolved.  
 Also I cannot guarantee the lack of a memory leak. I have not done extensive testing and highly do not reccomend using this for anything other than fun or like hackthebox lmao
 
